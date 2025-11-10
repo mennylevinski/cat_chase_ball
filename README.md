@@ -26,7 +26,7 @@ Basic Python mini game where a Cat trying to catch a Ball.
 
 ### Third-Party Attributions
 This project uses:
-- **Pygame** — a cross-platform set of Python modules for writing video games.  
+- **Pygame**, a cross-platform set of Python modules for writing video games.  
   Licensed under the LGPL 2.1 License.  
   https://www.pygame.org
   
