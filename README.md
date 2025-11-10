@@ -1,4 +1,4 @@
-# Cat Chasing Ball
+# Cat Chase Ball
 
 Basic Python mini game where a Cat trying to catch a Ball.
 
