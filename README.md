@@ -17,8 +17,10 @@ Basic Python mini game where a Cat trying to catch a Ball.
 
 ### 1️ Requirements
 - Python **3.8+**
-- Works on **Windows**, **Linux** and **macOS**
-- No external packages required
+- Works on **Windows**
+- Install dependency:
+  ```bash
+  pip install pygame
 
 ### 2️ Download & Run
 
