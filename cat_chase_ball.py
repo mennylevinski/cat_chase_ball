@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 """
+Author: Menny Levinski
 
 Cat chases the computer mouse (cursor) inside the game window.
 
@@ -8,7 +9,6 @@ Controls:
  - Move your mouse inside the window: the cat will chase it.
  - Left-click to "teleport" the mouse-target to a random place.
  - Esc or window close to quit.
- 
 """
 
 import warnings
@@ -170,3 +170,4 @@ while running:
     pygame.display.flip()
 
 pygame.quit()
+
