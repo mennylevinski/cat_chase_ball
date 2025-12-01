@@ -7,9 +7,9 @@ Basic Python mini game where a Cat trying to catch a Ball.
 ## 🕹️ Controls:
 
 
- - Move your mouse inside the window: the cat will chase it.
- - Left-click to "teleport" the mouse-target to a random place.
- - Esc or window close to quit.
+ - Move your mouse inside the window: the cat will chase it
+ - Left-click to "teleport" the mouse-target to a random place
+ - Esc or window close to quit
 
 ---
 
