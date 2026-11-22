@@ -17,7 +17,7 @@ A cozy living-room Python mini game where a Cat chases your Ball, jumps onto fur
 ## ⚙️ Installation
 
 ### 1️ Requirements
-- Python **3.8+**
+- Python **3.1+**
 - Works on **Windows**, **macOS**, and **Linux**
 - Install dependency:
   ```bash
