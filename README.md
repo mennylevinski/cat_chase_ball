@@ -1,6 +1,6 @@
 # Cat Chase Ball
 
-A cozy living-room Python mini game where a Cat chases your Ball, jumps onto furniture, and runs away with the ball if it catches it.
+A cozy Python mini game where a Cat chases your Ball, jumps onto furniture, and runs away with the ball if it catches it.
 
 ---
 
