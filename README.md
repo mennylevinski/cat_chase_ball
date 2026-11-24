@@ -1,23 +1,33 @@
 # Cat Chase Ball
 
-A cozy Python mini game where a Cat chases your Ball, jumps onto furniture, and runs away with the ball if it catches it.
+A cozy living-room mini game where a Cat chases your Ball, jumps onto furniture, and runs away with the ball if it catches it—playable both **in the browser** (GitHub Pages) and locally with **Python/Pygame**.
+
+---
+
+## 🌐 Play in Browser
+
+Once GitHub Pages is enabled (**Settings → Pages → Deploy from branch `main` / `/docs`**), play directly at:
+
+**https://mennylevinski.github.io/cat_chase_ball/**
+
+You can also open [docs/index.html](docs/index.html) locally in any modern browser.
 
 ---
 
 ## 🕹️ Controls & Features:
 
- - **Move your hand (cursor)** while holding the ball to lure the cat around the living room
- - **Left-click** while holding the ball to toss it in a bouncing arc across the room
+ - **Move your hand (cursor / finger)** while holding the ball to lure the cat around the living room
+ - **Left-click** (or **Space** in browser) while holding the ball to toss it in a bouncing arc across the room
  - The cat **jumps onto and over low furniture** (sofa, coffee table, armchair, ottoman) and smoothly steers around solid obstacles (TV stand, houseplant, floor lamp)
- - If the cat catches the ball, it **runs away carrying it** – chase the cat with the hand mark and touch the ball to take it
- - **Esc** or close window to quit
+ - If the cat catches the ball, it **runs away carrying it**—chase the cat and touch the ball with your open hand to take it back
+ - **Esc** (desktop) or close window to quit
 
 ---
 
-## ⚙️ Installation
+## ⚙️ Desktop Installation (Python / Pygame)
 
 ### 1️ Requirements
-- Python **3.1+**
+- Python **3.8+**
 - Works on **Windows**, **macOS**, and **Linux**
 - Install dependency:
   ```bash
@@ -32,7 +42,7 @@ python cat_chase_ball.py
 ---
 
 ### Third-Party Attributions
-This project uses:
+The desktop version uses:
 - **Pygame**, a cross-platform set of Python modules for writing video games.  
   Licensed under the LGPL 2.1 License.  
   https://www.pygame.org
