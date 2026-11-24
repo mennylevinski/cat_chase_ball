@@ -1254,7 +1254,7 @@ def main():
                 look_ahead = cat_pos + cat_vel.normalize() * 38.0
                 next_z = surface_height_at(look_ahead, furniture, pillows)
                 if next_z > cat_ground_z + 5.0:
-                    jump_peak = (next_z - cat_z) + 26.0
+                    jump_peak = max(0.0, (next_z - cat_z) + 26.0)
                     cat_vz = math.sqrt(2.0 * GRAVITY * jump_peak)
                 elif next_z < cat_ground_z - 5.0:
                     cat_vz = 150.0
@@ -1268,7 +1268,7 @@ def main():
 
             new_ground_z = surface_height_at(cat_pos, furniture, pillows)
             if new_ground_z > cat_z + 5.0 and cat_vz <= 0.0:
-                cat_vz = math.sqrt(2.0 * GRAVITY * ((new_ground_z - cat_z) + 20.0))
+                cat_vz = math.sqrt(2.0 * GRAVITY * max(0.0, (new_ground_z - cat_z) + 20.0))
             cat_vz -= GRAVITY * dt
             cat_z += cat_vz * dt
             if cat_z <= new_ground_z:

@@ -29,7 +29,7 @@ You can also open [docs/index.html](docs/index.html) locally in any modern brows
 ## ⚙️ Desktop Installation (Python / Pygame)
 
 ### 1️ Requirements
-- Python **3.8+**
+- Python **3.1+**
 - Works on **Windows**, **macOS**, and **Linux**
 - Install dependency:
   ```bash
@@ -47,4 +47,4 @@ python cat_chase_ball.py
 The desktop version uses:
 - **Pygame**, a cross-platform set of Python modules for writing video games.  
   Licensed under the LGPL 2.1 License.  
-  https://www.pygame.org
+  https://www.pygame.org/docs/
