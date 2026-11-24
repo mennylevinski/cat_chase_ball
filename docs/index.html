@@ -29,19 +29,33 @@
 
     .stage-wrap {
       position: relative;
-      width: min(1024px, calc(100vw - 20px));
-      aspect-ratio: 4 / 3;
-      max-height: calc(100vh - 54px);
+      width: min(1280px, calc(100vw - 16px), calc((100vh - 50px) * 16 / 9));
+      aspect-ratio: 16 / 9;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
+    body.is-fullscreen .stage-wrap {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+    }
+
+    body.is-fullscreen .footer {
+      position: fixed;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(31, 27, 24, 0.72);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-top: 0;
+      backdrop-filter: blur(4px);
+    }
+
     canvas {
       width: 100%;
       height: 100%;
-      max-width: 100%;
-      max-height: 100%;
       border-radius: 10px;
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
       cursor: none;
@@ -49,12 +63,17 @@
       background: #e0d6c6;
     }
 
+    body.is-fullscreen canvas {
+      border-radius: 0;
+      box-shadow: none;
+    }
+
     .footer {
-      margin-top: 10px;
+      margin-top: 8px;
       font-size: 13px;
       color: #b7aa99;
       display: flex;
-      gap: 14px;
+      gap: 10px;
       align-items: center;
       flex-wrap: wrap;
       justify-content: center;
@@ -78,11 +97,12 @@
 </head>
 <body>
   <div class="stage-wrap">
-    <canvas id="game" width="1024" height="768" aria-label="Cat Chase Ball Living Room Game"></canvas>
+    <canvas id="game" width="1280" height="720" aria-label="Cat Chase Ball Living Room Game"></canvas>
   </div>
   <div class="footer">
-    <span>Move mouse / drag finger to play · Click or Space to toss · Leave frame to watch cat rest</span>
+    <span>Move mouse / finger · Click or Space: toss · F: fullscreen · Hover top bar or stay still: let cat rest</span>
     <button id="tossBtn" type="button">Toss Ball</button>
+    <button id="fsBtn" type="button">Fullscreen</button>
     <button id="resetBtn" type="button">Reset</button>
   </div>
 
@@ -90,10 +110,10 @@
     (() => {
       "use strict";
 
-      const WIDTH = 1024;
-      const HEIGHT = 768;
+      const WIDTH = 1280;
+      const HEIGHT = 720;
       const WALL_THICKNESS = 28;
-      const HUD_HEIGHT = 68;
+      const HUD_HEIGHT = 64;
 
       const PLAY_RECT = {
         left: WALL_THICKNESS,
@@ -126,14 +146,14 @@
       const HAND_OUTLINE = "#6e4b37";
 
       // Physics & behavior constants
-      const MAX_SPEED = 215.0;
-      const FLEE_SPEED = 265.0;
-      const STROLL_SPEED = 92.0;
-      const ACCELERATION = 720.0;
+      const MAX_SPEED = 220.0;
+      const FLEE_SPEED = 275.0;
+      const STROLL_SPEED = 94.0;
+      const ACCELERATION = 740.0;
       const DAMPING = 2.2;
       const GRAVITY = 1050.0;
       const CATCH_DISTANCE = 32.0;
-      const MIN_THROW_DISTANCE = 200.0;
+      const MIN_THROW_DISTANCE = 220.0;
       const THROW_LOCK_TIME = 0.35;
       const GRAB_LOCK_TIME = 0.55;
       const CAT_CATCH_COOLDOWN = 0.65;
@@ -163,41 +183,81 @@
       }
 
       const FURNITURE = [
-        { name: "Sofa", rect: makeRect(322, 104, 360, 104), kind: "jumpable", height: 28.0, style: "sofa" },
-        { name: "Coffee Table", rect: makeRect(408, 358, 208, 114), kind: "jumpable", height: 24.0, style: "coffee_table" },
-        { name: "Armchair", rect: makeRect(792, 326, 128, 134), kind: "jumpable", height: 28.0, style: "armchair" },
-        { name: "Ottoman", rect: makeRect(162, 382, 96, 96), kind: "jumpable", height: 20.0, style: "ottoman" },
-        { name: "Cat Bed", rect: makeRect(78, 608, 106, 96), kind: "jumpable", height: 6.0, style: "cat_bed" },
-        { name: "TV Stand", rect: makeRect(362, 672, 300, 64), kind: "solid", height: 54.0, style: "tv_stand" },
-        { name: "Houseplant", rect: makeRect(34, 74, 76, 76), kind: "solid", height: 58.0, style: "plant" },
-        { name: "Floor Lamp", rect: makeRect(928, 74, 62, 62), kind: "solid", height: 64.0, style: "lamp" },
+        { name: "Sofa", rect: makeRect(430, 96, 420, 102), kind: "jumpable", height: 28.0, style: "sofa" },
+        { name: "Coffee Table", rect: makeRect(530, 336, 220, 114), kind: "jumpable", height: 24.0, style: "coffee_table" },
+        { name: "Armchair", rect: makeRect(1024, 308, 134, 140), kind: "jumpable", height: 28.0, style: "armchair" },
+        { name: "Ottoman", rect: makeRect(178, 344, 100, 100), kind: "jumpable", height: 20.0, style: "ottoman" },
+        { name: "Cat Bed", rect: makeRect(74, 566, 112, 98), kind: "jumpable", height: 6.0, style: "cat_bed" },
+        { name: "TV Stand", rect: makeRect(470, 624, 340, 64), kind: "solid", height: 54.0, style: "tv_stand" },
+        { name: "Houseplant", rect: makeRect(34, 70, 76, 76), kind: "solid", height: 58.0, style: "plant" },
+        { name: "Floor Lamp", rect: makeRect(1182, 70, 62, 62), kind: "solid", height: 64.0, style: "lamp" },
       ];
 
       const SOLID_ITEMS = FURNITURE.filter((f) => f.kind === "solid");
+      const ALL_FURNITURE_RECTS = FURNITURE.map((f) => f.rect);
+      const SOLID_RECTS = SOLID_ITEMS.map((f) => f.rect);
+
+      function createFloorPillows() {
+        return [
+          {
+            pos: { x: 348, y: 505 },
+            vel: { x: 0, y: 0 },
+            radius: 30.0,
+            height: 12.0,
+            angle: 0.22,
+            color: "#d48060",
+            trimColor: "#a85c42",
+            buttonColor: "#f4d8c2",
+            shape: "square",
+          },
+          {
+            pos: { x: 932, y: 232 },
+            vel: { x: 0, y: 0 },
+            radius: 28.0,
+            height: 12.0,
+            angle: -0.30,
+            color: "#70a298",
+            trimColor: "#4e7a72",
+            buttonColor: "#dceee8",
+            shape: "round",
+          },
+          {
+            pos: { x: 952, y: 518 },
+            vel: { x: 0, y: 0 },
+            radius: 29.0,
+            height: 12.0,
+            angle: 0.42,
+            color: "#deb25c",
+            trimColor: "#b0863a",
+            buttonColor: "#f8eac6",
+            shape: "square",
+          },
+        ];
+      }
 
       const FLEE_WAYPOINTS = [
-        { x: 502, y: 156 },
-        { x: 375, y: 156 },
-        { x: 625, y: 156 },
-        { x: 512, y: 415 },
-        { x: 210, y: 430 },
-        { x: 850, y: 392 },
-        { x: 250, y: 260 },
-        { x: 760, y: 250 },
-        { x: 270, y: 560 },
-        { x: 755, y: 565 },
-        { x: 145, y: 645 },
-        { x: 870, y: 610 },
+        { x: 640, y: 148 },
+        { x: 490, y: 148 },
+        { x: 790, y: 148 },
+        { x: 640, y: 393 },
+        { x: 228, y: 394 },
+        { x: 1088, y: 378 },
+        { x: 310, y: 235 },
+        { x: 960, y: 235 },
+        { x: 320, y: 560 },
+        { x: 960, y: 560 },
+        { x: 130, y: 615 },
+        { x: 1135, y: 575 },
       ];
 
       const COZY_SPOTS = [
-        { kind: "cat_bed", pos: { x: 131, y: 656 } },
-        { kind: "sofa", pos: { x: 410, y: 158 } },
-        { kind: "sofa", pos: { x: 595, y: 158 } },
-        { kind: "armchair", pos: { x: 852, y: 392 } },
-        { kind: "ottoman", pos: { x: 210, y: 430 } },
-        { kind: "rug", pos: { x: 512, y: 520 } },
-        { kind: "lamp", pos: { x: 835, y: 195 } },
+        { kind: "cat_bed", pos: { x: 130, y: 615 } },
+        { kind: "sofa", pos: { x: 515, y: 148 } },
+        { kind: "sofa", pos: { x: 765, y: 148 } },
+        { kind: "armchair", pos: { x: 1086, y: 378 } },
+        { kind: "ottoman", pos: { x: 228, y: 394 } },
+        { kind: "rug", pos: { x: 640, y: 505 } },
+        { kind: "lamp", pos: { x: 1110, y: 185 } },
       ];
 
       const STEER_DIRS = Array.from({ length: 16 }, (_, i) => {
@@ -223,11 +283,18 @@
         };
       }
 
-      function surfaceHeightAt(pos) {
+      function surfaceHeightAt(pos, pillows = null) {
         let best = 0.0;
         for (const item of FURNITURE) {
           if (item.kind === "jumpable" && rectContains(item.rect, pos.x, pos.y)) {
             if (item.height > best) best = item.height;
+          }
+        }
+        if (pillows) {
+          for (const p of pillows) {
+            if (vDist(pos, p.pos) <= p.radius + 4.0 && p.height > best) {
+              best = p.height;
+            }
           }
         }
         return best;
@@ -293,12 +360,17 @@
         return { x: bestWp.x, y: bestWp.y };
       }
 
-      function pickCozySpot(catPos, preferBed = false) {
+      function pickCozySpot(catPos, preferBed = false, pillows = []) {
         const weighted = COZY_SPOTS.map((spot) => {
           let w = preferBed && (spot.kind === "cat_bed" || spot.kind === "sofa") ? 3.0 : 1.0;
           if (vDist(spot.pos, catPos) < 55.0) w *= 0.25;
           return { kind: spot.kind, pos: spot.pos, w };
         });
+        for (const p of pillows) {
+          let w = preferBed ? 2.2 : 1.5;
+          if (vDist(p.pos, catPos) < 55.0) w *= 0.25;
+          weighted.push({ kind: "pillow", pos: { x: p.pos.x, y: p.pos.y }, w });
+        }
         const total = weighted.reduce((s, item) => s + item.w, 0);
         let r = Math.random() * total;
         for (const item of weighted) {
@@ -372,13 +444,12 @@
         return bestDir;
       }
 
-      function resolveSolidCollisions(pos, vel, radius = CAT_RADIUS) {
+      function resolveRectCollisions(pos, vel, rects, radius) {
         let ox = pos.x;
         let oy = pos.y;
         let vx = vel.x;
         let vy = vel.y;
-        for (const item of SOLID_ITEMS) {
-          const r = item.rect;
+        for (const r of rects) {
           const cx = Math.max(r.left, Math.min(ox, r.right));
           const cy = Math.max(r.top, Math.min(oy, r.bottom));
           const dx = ox - cx;
@@ -412,6 +483,65 @@
           }
         }
         return { pos: { x: ox, y: oy }, vel: { x: vx, y: vy } };
+      }
+
+      function resolveSolidCollisions(pos, vel, radius = CAT_RADIUS) {
+        return resolveRectCollisions(pos, vel, SOLID_RECTS, radius);
+      }
+
+      function updateFloorPillows(pillows, catPos, catVel, catZ, dt) {
+        const speed = vLen(catVel.x, catVel.y);
+        const drag = Math.exp(-8.5 * dt);
+
+        for (const p of pillows) {
+          if (speed > 135.0 && catZ < 9.0) {
+            const dx = p.pos.x - catPos.x;
+            const dy = p.pos.y - catPos.y;
+            const dist = Math.hypot(dx, dy);
+            const touchDist = CAT_RADIUS + p.radius - 4.0;
+            if (dist > 1.0 && dist < touchDist) {
+              const px = dx / dist;
+              const py = dy / dist;
+              const approach = catVel.x * px + catVel.y * py;
+              if (approach > 40.0) {
+                const boost = Math.min(105.0, approach * 0.42) * dt * 12.0;
+                p.vel.x += px * boost;
+                p.vel.y += py * boost;
+                p.angle += (catVel.x * py - catVel.y * px) * 0.00018;
+              }
+            }
+          }
+
+          p.pos.x += p.vel.x * dt;
+          p.pos.y += p.vel.y * dt;
+          p.vel.x *= drag;
+          p.vel.y *= drag;
+          if (vLen(p.vel.x, p.vel.y) < 3.0) {
+            p.vel.x = 0;
+            p.vel.y = 0;
+          }
+
+          const resolved = resolveRectCollisions(p.pos, p.vel, ALL_FURNITURE_RECTS, p.radius + 4.0);
+          p.pos = clampPoint(resolved.pos, p.radius + 8.0, p.radius + 8.0);
+          p.vel = resolved.vel;
+        }
+
+        // Prevent floor pillows from overlapping each other
+        for (let i = 0; i < pillows.length; i++) {
+          for (let j = i + 1; j < pillows.length; j++) {
+            const a = pillows[i], b = pillows[j];
+            const dx = b.pos.x - a.pos.x;
+            const dy = b.pos.y - a.pos.y;
+            const dist = Math.hypot(dx, dy);
+            const minD = a.radius + b.radius + 4.0;
+            if (dist > 0.001 && dist < minD) {
+              const push = (minD - dist) * 0.5;
+              const nx = dx / dist, ny = dy / dist;
+              a.pos = clampPoint({ x: a.pos.x - nx * push, y: a.pos.y - ny * push }, a.radius + 8.0, a.radius + 8.0);
+              b.pos = clampPoint({ x: b.pos.x + nx * push, y: b.pos.y + ny * push }, b.radius + 8.0, b.radius + 8.0);
+            }
+          }
+        }
       }
 
       // Drawing helpers
@@ -456,6 +586,50 @@
         ctx.restore();
       }
 
+      function drawFloorPillow(ctx, p) {
+        const px = p.pos.x, py = p.pos.y, r = p.radius;
+        drawShadowEllipse(ctx, px + 4, py + 6, r * 1.02, r * 0.92, 0.19);
+
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(p.angle);
+        if (p.shape === "round") {
+          ctx.fillStyle = p.trimColor;
+          ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.arc(0, 0, r - 3, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = p.trimColor;
+          ctx.lineWidth = 1;
+          for (let k = 0; k < 6; k++) {
+            const a = (k * Math.PI) / 3;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(a) * (r - 6), Math.sin(a) * (r - 6));
+            ctx.stroke();
+          }
+          ctx.fillStyle = p.trimColor;
+          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = p.buttonColor;
+          ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        } else {
+          fillStrokeRoundRect(ctx, -r, -r, r * 2, r * 2, 14, p.trimColor);
+          fillStrokeRoundRect(ctx, -r + 3, -r + 3, r * 2 - 6, r * 2 - 6, 12, p.color);
+          ctx.strokeStyle = p.trimColor;
+          ctx.lineWidth = 1;
+          for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(dx * (r - 8), dy * (r - 8));
+            ctx.stroke();
+          }
+          ctx.fillStyle = p.trimColor;
+          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = p.buttonColor;
+          ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+
       function drawFurnitureItem(ctx, item) {
         const r = item.rect;
         if (item.style === "sofa") {
@@ -468,14 +642,17 @@
           for (let i = 0; i < 3; i++) {
             fillStrokeRoundRect(ctx, r.x + 34 + i * (cw + 2), r.y + 34, cw - 2, r.height - 42, 10, "#688a9c", "#4a687a", 2);
           }
-          fillStrokeRoundRect(ctx, r.x + 40, r.y + 36, 36, 28, 8, "#d69262");
+          // Sofa throw pillows
+          fillStrokeRoundRect(ctx, r.x + 38, r.y + 34, 38, 30, 8, "#da8e60", "#b06844", 1.5);
+          fillStrokeRoundRect(ctx, r.x + 68, r.y + 42, 30, 24, 7, "#eee4d2", "#cec4b2", 1.5);
+          fillStrokeRoundRect(ctx, r.right - 80, r.y + 36, 40, 28, 8, "#e4bc62", "#b08e40", 1.5);
         } else if (item.style === "coffee_table") {
           drawShadowRect(ctx, r, 14, 7, 9, 0.23);
           fillStrokeRoundRect(ctx, r.x, r.y, r.width, r.height, 12, "#845838", "#603e26", 2);
           fillStrokeRoundRect(ctx, r.x + 7, r.y + 7, r.width - 14, r.height - 14, 8, "#946644");
-          fillStrokeRoundRect(ctx, r.x + 24, r.y + 24, 54, 40, 4, "#eee8da");
-          fillStrokeRoundRect(ctx, r.x + 30, r.y + 30, 42, 12, 2, "#b67a5c");
-          const mx = r.right - 44, my = r.y + 42;
+          fillStrokeRoundRect(ctx, r.x + 26, r.y + 24, 56, 40, 4, "#eee8da");
+          fillStrokeRoundRect(ctx, r.x + 32, r.y + 30, 44, 12, 2, "#b67a5c");
+          const mx = r.right - 46, my = r.y + 42;
           ctx.fillStyle = "#dcd4c6";
           ctx.beginPath(); ctx.arc(mx, my, 13, 0, Math.PI * 2); ctx.fill();
           ctx.fillStyle = "#f5f5f5";
@@ -489,6 +666,8 @@
           fillStrokeRoundRect(ctx, r.x + 8, r.y + 5, r.width - 16, 20, 8, "#905c4a");
           fillStrokeRoundRect(ctx, r.x + 8, r.bottom - 25, r.width - 16, 20, 8, "#905c4a");
           fillStrokeRoundRect(ctx, r.x + 10, r.y + 27, r.width - 42, r.height - 54, 10, "#b27862", "#865442", 2);
+          // Accent cushion
+          fillStrokeRoundRect(ctx, r.right - 56, r.centery - 22, 24, 44, 7, "#ece0ca", "#c2b6a2", 1.5);
         } else if (item.style === "ottoman") {
           drawShadowEllipse(ctx, r.centerx + 5, r.centery + 7, r.width / 2, r.height / 2, 0.23);
           ctx.beginPath();
@@ -513,8 +692,8 @@
         } else if (item.style === "tv_stand") {
           drawShadowRect(ctx, r, 10, 5, 6, 0.25);
           fillStrokeRoundRect(ctx, r.x, r.y, r.width, r.height, 8, "#624836", "#443024", 2);
-          fillStrokeRoundRect(ctx, r.x + 42, r.y + 24, r.width - 84, 14, 4, "#24262c");
-          fillStrokeRoundRect(ctx, r.x + 48, r.y + 27, r.width - 96, 4, 2, "#4c5666");
+          fillStrokeRoundRect(ctx, r.x + 48, r.y + 24, r.width - 96, 14, 4, "#24262c");
+          fillStrokeRoundRect(ctx, r.x + 54, r.y + 27, r.width - 108, 4, 2, "#4c5666");
         } else if (item.style === "plant") {
           const cx = r.centerx, cy = r.centery;
           drawShadowEllipse(ctx, cx + 6, cy + 8, 36, 36, 0.24);
@@ -537,11 +716,11 @@
         } else if (item.style === "lamp") {
           const cx = r.centerx, cy = r.centery;
           drawShadowEllipse(ctx, cx + 5, cy + 7, 28, 28, 0.2);
-          const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 68);
+          const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 70);
           grad.addColorStop(0, "rgba(255, 240, 185, 0.34)");
           grad.addColorStop(1, "rgba(255, 236, 175, 0)");
           ctx.fillStyle = grad;
-          ctx.beginPath(); ctx.arc(cx, cy, 68, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx, cy, 70, 0, Math.PI * 2); ctx.fill();
           ctx.fillStyle = "#eee0bc";
           ctx.beginPath(); ctx.arc(cx, cy, 25, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = "#baa884"; ctx.lineWidth = 2; ctx.stroke();
@@ -604,7 +783,7 @@
           6
         );
 
-        const rug = makeRect(236, 252, 552, 344);
+        const rug = makeRect(290, 224, 700, 340);
         fillStrokeRoundRect(c, rug.x, rug.y, rug.width, rug.height, 10, "#dacebc");
         fillStrokeRoundRect(c, rug.x + 7, rug.y + 7, rug.width - 14, rug.height - 14, 8, null, "#b07e62", 5);
         fillStrokeRoundRect(c, rug.x + 16, rug.y + 16, rug.width - 32, rug.height - 32, 6, null, "#7c9286", 2);
@@ -620,12 +799,12 @@
         }
 
         c.fillStyle = HUD_BG;
-        c.fillRect(0, 0, WIDTH, HUD_HEIGHT - 6);
+        c.fillRect(0, 0, WIDTH, HUD_HEIGHT - 4);
         c.strokeStyle = "#5c524a";
         c.lineWidth = 2;
         c.beginPath();
-        c.moveTo(0, HUD_HEIGHT - 6);
-        c.lineTo(WIDTH, HUD_HEIGHT - 6);
+        c.moveTo(0, HUD_HEIGHT - 4);
+        c.lineTo(WIDTH, HUD_HEIGHT - 4);
         c.stroke();
 
         return off;
@@ -747,11 +926,9 @@
           const sr = s * breath;
           drawShadowEllipse(ctx, pos.x + 3, pos.y + 7 - groundZ * 0.65, CAT_SIZE * 0.56, CAT_SIZE * 0.48, 0.25);
 
-          // Curled sleeping body
           ctx.fillStyle = CAT_COLOR;
           ctx.beginPath(); ctx.arc(cx, cy, sr * 0.50, 0, Math.PI * 2); ctx.fill();
 
-          // Back stripes
           ctx.strokeStyle = CAT_STRIPE;
           ctx.lineWidth = Math.max(2, sr * 0.06);
           for (const deg of [-35, 0, 35]) {
@@ -762,7 +939,6 @@
             ctx.stroke();
           }
 
-          // Wrapped tail
           ctx.lineCap = "round";
           ctx.lineJoin = "round";
           ctx.beginPath();
@@ -782,14 +958,12 @@
           ctx.lineWidth = Math.max(2, sr * 0.09);
           ctx.stroke();
 
-          // Tucked head
           const hx = cx + fx * (sr * 0.28) + rx * (sr * 0.12);
           const hy = cy + fy * (sr * 0.28) + ry * (sr * 0.12);
           ctx.fillStyle = CAT_COLOR;
           ctx.beginPath(); ctx.arc(hx, hy, sr * 0.34, 0, Math.PI * 2); ctx.fill();
           drawEars(ctx, hx, hy, fx, fy, rx, ry, sr * 0.85);
 
-          // Closed peaceful eyes
           ctx.strokeStyle = PUPIL_COLOR;
           ctx.lineWidth = 2;
           const ebx = hx + fx * (sr * 0.12);
@@ -808,7 +982,6 @@
           ctx.arc(hx + fx * (sr * 0.27), hy + fy * (sr * 0.27), Math.max(2, sr * 0.04), 0, Math.PI * 2);
           ctx.fill();
 
-          // Floating Zzz
           const zLabels = ["z", "z", "Z"];
           ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           for (let i = 0; i < zLabels.length; i++) {
@@ -835,7 +1008,6 @@
           Math.max(0.1, 0.28 - air * 0.0016)
         );
 
-        // Multi-segment curved swaying tail
         const tailBaseX = cx - fx * (s * (isSeated ? 0.42 : 0.52));
         const tailBaseY = cy - fy * (s * (isSeated ? 0.42 : 0.52));
         const tailAmp = isSeated ? 0.16 : 0.24;
@@ -859,7 +1031,6 @@
         ctx.lineWidth = Math.max(2, s * 0.09);
         ctx.stroke();
 
-        // Paws & body
         let bodyCircles;
         if (isSeated) {
           for (const side of [-1, 1]) {
@@ -897,7 +1068,6 @@
           ctx.fill();
         }
 
-        // Tabby stripes
         ctx.strokeStyle = CAT_STRIPE;
         ctx.lineWidth = Math.max(2, s * 0.06);
         const stripes = isSeated ? [-0.12, 0.06] : [-0.18, 0.0, 0.16];
@@ -910,7 +1080,6 @@
           ctx.stroke();
         }
 
-        // Head
         const headShift = isSeated ? 0.42 : 0.56;
         const groomBob = mood === "groom" ? Math.sin(moodPhase * 7.5) * (s * 0.04) : 0;
         const hx = cx + fx * (s * headShift + groomBob);
@@ -919,7 +1088,6 @@
         ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
         drawEars(ctx, hx, hy, fx, fy, rx, ry, s);
 
-        // Eyes
         const blinking = mood === "sit" && (moodPhase % 3.4) > 3.22;
         const ebx = hx + fx * (s * 0.15);
         const eby = hy + fy * (s * 0.15);
@@ -941,13 +1109,11 @@
           }
         }
 
-        // Nose
         ctx.fillStyle = CAT_INNER_EAR;
         ctx.beginPath();
         ctx.arc(hx + fx * (s * 0.33), hy + fy * (s * 0.33), Math.max(2, s * 0.045), 0, Math.PI * 2);
         ctx.fill();
 
-        // Grooming paw licking/rubbing face
         if (mood === "groom") {
           const rub = Math.sin(moodPhase * 7.5);
           const lpx = hx + fx * (s * (0.24 + 0.08 * rub)) + rx * (s * (0.26 - 0.10 * rub));
@@ -962,11 +1128,13 @@
       // Main setup
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
+      const fsBtn = document.getElementById("fsBtn");
       const roomBg = buildLivingRoomCanvas();
 
       // State
+      let pillows;
       let catPos, catVel, catAngle, catZ, catVz, walkPhase, tailPhase;
-      let cursorPos, prevCursorPos, handSpeed, pointerInside;
+      let cursorPos, prevCursorPos, handSpeed, pointerInside, pointerOnHud;
       let ballPos, ballVel, ballZ, ballVz, ballState;
       let throwLockTimer, grabLockTimer, catCatchCooldown;
       let fleeTarget, fleeRetargetTimer, recentFleeWaypoints;
@@ -986,7 +1154,7 @@
 
       function chooseNextIdleMood(arrivedKind = null) {
         moodPhase = 0;
-        if ((arrivedKind === "cat_bed" || arrivedKind === "sofa") && Math.random() < 0.55) {
+        if ((arrivedKind === "cat_bed" || arrivedKind === "sofa" || arrivedKind === "pillow") && Math.random() < 0.58) {
           catMood = "sleep";
           moodTimer = randRange(7.5, 12.0);
           return;
@@ -997,7 +1165,7 @@
         else catMood = randChoice(["groom", "stroll", "sleep"]);
 
         if (catMood === "stroll") {
-          const picked = pickCozySpot(catPos, Math.random() < 0.6);
+          const picked = pickCozySpot(catPos, Math.random() < 0.6, pillows);
           cozyKind = picked.kind;
           cozyTarget = picked.pos;
           moodTimer = randRange(6.0, 10.0);
@@ -1013,21 +1181,23 @@
       }
 
       function resetGame() {
-        catPos = { x: 280, y: 520 };
+        pillows = createFloorPillows();
+        catPos = { x: 360, y: 480 };
         catVel = { x: 0, y: 0 };
         catAngle = 0.0;
-        catZ = surfaceHeightAt(catPos);
+        catZ = surfaceHeightAt(catPos, pillows);
         catVz = 0.0;
         walkPhase = 0.0;
         tailPhase = 0.0;
 
-        cursorPos = { x: 540, y: 420 };
-        prevCursorPos = { x: 540, y: 420 };
+        cursorPos = { x: 640, y: 400 };
+        prevCursorPos = { x: 640, y: 400 };
         handSpeed = 0.0;
         pointerInside = true;
+        pointerOnHud = false;
         ballPos = { x: cursorPos.x, y: cursorPos.y };
         ballVel = { x: 0, y: 0 };
-        ballZ = surfaceHeightAt(ballPos);
+        ballZ = surfaceHeightAt(ballPos, pillows);
         ballVz = 0.0;
         ballState = "held"; // "held" | "loose" | "cat"
 
@@ -1058,40 +1228,69 @@
           x: (dest.x - ballPos.x) / flightTime,
           y: (dest.y - ballPos.y) / flightTime,
         };
-        ballZ = Math.max(surfaceHeightAt(ballPos) + 12.0, 22.0);
+        ballZ = Math.max(surfaceHeightAt(ballPos, pillows) + 12.0, 22.0);
         ballVz = 290.0;
         ballState = "loose";
         throwLockTimer = THROW_LOCK_TIME;
       }
 
-      function toCanvasCoords(clientX, clientY) {
+      async function toggleFullscreen() {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          } else {
+            await document.exitFullscreen();
+          }
+        } catch (_) {
+          // Ignore if browser blocks fullscreen outside gesture
+        }
+      }
+
+      function syncFullscreenUI() {
+        const isFs = Boolean(document.fullscreenElement);
+        document.body.classList.toggle("is-fullscreen", isFs);
+        fsBtn.textContent = isFs ? "Exit Fullscreen" : "Fullscreen";
+      }
+
+      document.addEventListener("fullscreenchange", syncFullscreenUI);
+
+      function toRawCanvasCoords(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const x = ((clientX - rect.left) / rect.width) * WIDTH;
-        const y = ((clientY - rect.top) / rect.height) * HEIGHT;
-        return clampPoint({ x, y }, MOUSE_RADIUS, MOUSE_RADIUS);
+        return {
+          x: ((clientX - rect.left) / rect.width) * WIDTH,
+          y: ((clientY - rect.top) / rect.height) * HEIGHT,
+        };
       }
 
       canvas.addEventListener("pointermove", (e) => {
+        const raw = toRawCanvasCoords(e.clientX, e.clientY);
         pointerInside = true;
-        const nextPos = toCanvasCoords(e.clientX, e.clientY);
-        if (vDist(nextPos, cursorPos) > 1.5) wakeCat();
+        pointerOnHud = raw.y < HUD_HEIGHT;
+        const nextPos = clampPoint(raw, MOUSE_RADIUS, MOUSE_RADIUS);
+        if (!pointerOnHud && vDist(nextPos, cursorPos) > 1.5) wakeCat();
         cursorPos = nextPos;
       });
 
       canvas.addEventListener("pointerenter", (e) => {
+        const raw = toRawCanvasCoords(e.clientX, e.clientY);
         pointerInside = true;
-        cursorPos = toCanvasCoords(e.clientX, e.clientY);
-        wakeCat();
+        pointerOnHud = raw.y < HUD_HEIGHT;
+        cursorPos = clampPoint(raw, MOUSE_RADIUS, MOUSE_RADIUS);
+        if (!pointerOnHud) wakeCat();
       });
 
       canvas.addEventListener("pointerleave", () => {
         pointerInside = false;
+        pointerOnHud = false;
       });
 
       canvas.addEventListener("pointerdown", (e) => {
         if (e.button !== 0 && e.pointerType === "mouse") return;
+        const raw = toRawCanvasCoords(e.clientX, e.clientY);
         pointerInside = true;
-        cursorPos = toCanvasCoords(e.clientX, e.clientY);
+        pointerOnHud = raw.y < HUD_HEIGHT;
+        cursorPos = clampPoint(raw, MOUSE_RADIUS, MOUSE_RADIUS);
+        if (pointerOnHud) return;
         wakeCat();
         if (ballState === "held") {
           tossBall();
@@ -1109,12 +1308,16 @@
         if (e.code === "Space") {
           e.preventDefault();
           tossBall();
+        } else if (e.code === "KeyF") {
+          e.preventDefault();
+          toggleFullscreen();
         } else if (e.code === "KeyR") {
           resetGame();
         }
       });
 
       document.getElementById("tossBtn").addEventListener("click", tossBall);
+      fsBtn.addEventListener("click", toggleFullscreen);
       document.getElementById("resetBtn").addEventListener("click", resetGame);
 
       resetGame();
@@ -1127,7 +1330,9 @@
         catCatchCooldown = Math.max(0, catCatchCooldown - dt);
         fleeRetargetTimer = Math.max(0, fleeRetargetTimer - dt);
 
-        if (pointerInside) {
+        const pointerInRoom = pointerInside && !pointerOnHud;
+
+        if (pointerInRoom) {
           outsideTimer = 0;
           const moved = vDist(cursorPos, prevCursorPos);
           handSpeed = handSpeed * 0.75 + (moved / Math.max(dt, 1e-4)) * 0.25;
@@ -1140,7 +1345,7 @@
           handSpeed *= 0.8;
         }
 
-        // Transition into calm autonomous behavior when mouse leaves frame or stays idle
+        // Calm autonomous behavior when mouse leaves frame, hovers top HUD, or stays still
         const idleTriggered =
           outsideTimer >= OUTSIDE_IDLE_DELAY ||
           (mouseIdleTimer >= STILL_IDLE_DELAY && ballState !== "loose");
@@ -1154,7 +1359,7 @@
           }
           if (Math.random() < 0.65) {
             catMood = "stroll";
-            const picked = pickCozySpot(catPos, true);
+            const picked = pickCozySpot(catPos, true, pillows);
             cozyKind = picked.kind;
             cozyTarget = picked.pos;
             moodTimer = randRange(6.0, 10.0);
@@ -1167,10 +1372,9 @@
           moodPhase = 0;
         }
 
-        // Pick up loose ball or take it back from the cat when pointer is active inside
-        if (pointerInside) {
+        if (pointerInRoom) {
           if (ballState === "loose" && throwLockTimer <= 0) {
-            if (vDist(cursorPos, ballPos) <= PICKUP_DISTANCE && ballZ - surfaceHeightAt(ballPos) < 35.0) {
+            if (vDist(cursorPos, ballPos) <= PICKUP_DISTANCE && ballZ - surfaceHeightAt(ballPos, pillows) < 35.0) {
               ballState = "held";
               ballVel = { x: 0, y: 0 };
               ballVz = 0;
@@ -1189,7 +1393,7 @@
         if (ballState === "held") {
           ballPos = { x: cursorPos.x, y: cursorPos.y };
           ballVel = { x: 0, y: 0 };
-          ballZ = surfaceHeightAt(ballPos);
+          ballZ = surfaceHeightAt(ballPos, pillows);
           ballVz = 0;
         } else if (ballState === "loose") {
           ballPos.x += ballVel.x * dt;
@@ -1214,7 +1418,7 @@
           ballPos = resolvedBall.pos;
           ballVel = resolvedBall.vel;
 
-          const bGround = surfaceHeightAt(ballPos);
+          const bGround = surfaceHeightAt(ballPos, pillows);
           ballVz -= GRAVITY * dt;
           ballZ += ballVz * dt;
           if (ballZ <= bGround) {
@@ -1236,7 +1440,7 @@
         }
 
         // Cat AI steering
-        const catGroundZ = surfaceHeightAt(catPos);
+        const catGroundZ = surfaceHeightAt(catPos, pillows);
         let desired = { x: 0, y: 0 };
         let speedCap = MAX_SPEED;
 
@@ -1246,7 +1450,7 @@
           if (catMood === "stroll") {
             speedCap = STROLL_SPEED;
             if (!cozyTarget) {
-              const picked = pickCozySpot(catPos, true);
+              const picked = pickCozySpot(catPos, true, pillows);
               cozyKind = picked.kind;
               cozyTarget = picked.pos;
             }
@@ -1277,7 +1481,7 @@
             handDist > 290.0 &&
             handSpeed < 65.0 &&
             catZ <= catGroundZ + 1.0 &&
-            (!fleeTarget || vDist(fleeTarget, catPos) < 95.0 || catGroundZ >= 18.0);
+            (!fleeTarget || vDist(fleeTarget, catPos) < 95.0 || catGroundZ >= 12.0);
           if (safePause) {
             const lx = cursorPos.x - catPos.x;
             const ly = cursorPos.y - catPos.y;
@@ -1324,7 +1528,6 @@
           }
         }
 
-        // Smooth acceleration & damping
         let sx = desired.x - catVel.x;
         let sy = desired.y - catVel.y;
         const sLen = Math.hypot(sx, sy);
@@ -1348,17 +1551,17 @@
           speed = speedCap;
         }
 
-        // Proactive jumping onto/off furniture
+        // Proactive jumping onto/off furniture & floor pillows
         if (catZ <= catGroundZ + 1.0 && speed > 22.0) {
           const lookAhead = {
             x: catPos.x + (catVel.x / speed) * 38.0,
             y: catPos.y + (catVel.y / speed) * 38.0,
           };
-          const nextZ = surfaceHeightAt(lookAhead);
-          if (nextZ > catGroundZ + 6.0) {
-            catVz = Math.sqrt(2.0 * GRAVITY * ((nextZ - catZ) + 28.0));
-          } else if (nextZ < catGroundZ - 6.0) {
-            catVz = 155.0;
+          const nextZ = surfaceHeightAt(lookAhead, pillows);
+          if (nextZ > catGroundZ + 5.0) {
+            catVz = Math.sqrt(2.0 * GRAVITY * ((nextZ - catZ) + 26.0));
+          } else if (nextZ < catGroundZ - 5.0) {
+            catVz = 150.0;
           }
         }
 
@@ -1368,9 +1571,12 @@
         catPos = clampPoint(resolvedCat.pos, CAT_RADIUS, CAT_RADIUS);
         catVel = resolvedCat.vel;
 
-        const newGroundZ = surfaceHeightAt(catPos);
-        if (newGroundZ > catZ + 6.0 && catVz <= 0) {
-          catVz = Math.sqrt(2.0 * GRAVITY * ((newGroundZ - catZ) + 22.0));
+        // Gently nudge loose floor pillows when sprinting past
+        updateFloorPillows(pillows, catPos, catVel, catZ, dt);
+
+        const newGroundZ = surfaceHeightAt(catPos, pillows);
+        if (newGroundZ > catZ + 5.0 && catVz <= 0) {
+          catVz = Math.sqrt(2.0 * GRAVITY * ((newGroundZ - catZ) + 20.0));
         }
         catVz -= GRAVITY * dt;
         catZ += catVz * dt;
@@ -1386,7 +1592,6 @@
             : 2.8 + speed * 0.025;
         tailPhase += tailRate * dt;
 
-        // Catch detection (active play only)
         if (catMood === "active" && ballState !== "cat" && catCatchCooldown <= 0) {
           if (vDist(catPos, ballPos) <= CATCH_DISTANCE && Math.abs(catZ - ballZ) <= 32.0) {
             ballState = "cat";
@@ -1416,22 +1621,26 @@
       function render() {
         ctx.drawImage(roomBg, 0, 0);
 
+        for (const pillow of pillows) {
+          drawFloorPillow(ctx, pillow);
+        }
+
         for (const item of SOLID_ITEMS) {
           drawFurnitureItem(ctx, item);
         }
 
         if (ballState === "loose") {
-          drawBall(ctx, ballPos, ballZ, surfaceHeightAt(ballPos));
+          drawBall(ctx, ballPos, ballZ, surfaceHeightAt(ballPos, pillows));
         }
 
-        const catGroundZ = surfaceHeightAt(catPos);
+        const catGroundZ = surfaceHeightAt(catPos, pillows);
         drawCat(ctx, catPos, catAngle, catZ, catGroundZ, walkPhase, tailPhase, catMood, moodPhase);
 
         if (ballState === "cat") {
           drawBall(ctx, ballPos, ballZ, catGroundZ);
         }
 
-        if (pointerInside) {
+        if (pointerInside && !pointerOnHud) {
           drawHand(ctx, cursorPos, ballState === "held");
         }
 
@@ -1439,9 +1648,9 @@
         ctx.font = '500 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillStyle = "#eee8de";
         ctx.fillText(
-          "Left-click / Space: toss ball  |  Touch ball to pick up or take it back  |  Leave frame to let cat rest",
+          "Left-click / Space: toss ball  |  F: fullscreen  |  Hover top bar or stay still: let cat rest",
           16,
-          24
+          23
         );
 
         let stateLabel = "Holding ball";
@@ -1459,7 +1668,7 @@
         ctx.fillText(
           `Speed: ${Math.round(vLen(catVel.x, catVel.y))} px/s   Surface: ${onSurface}   [${stateLabel}]`,
           16,
-          48
+          46
         );
       }
 

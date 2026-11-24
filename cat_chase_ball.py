@@ -3,15 +3,16 @@
 """
 Author: Menny Levinski
 
-Living-room Cat Chase Ball game.
+Living-room Cat Chase Ball game (1280x720 widescreen with toggleable fullscreen).
 
 Controls:
  - Move your hand (cursor) to lure the cat while holding the ball.
  - Left-click while holding the ball to toss it across the living room.
- - When the cat catches the ball, it runs away—jumping over furniture—so
-   chase it down and touch the ball with your open hand to take it back.
- - Move the mouse out of the window (or stay still) and the cat will calm
-   down, drop the ball, stroll to a cozy spot, sit, groom itself, or sleep.
+ - When the cat catches the ball, it runs away—jumping over furniture & floor
+   pillows—so chase it down and touch the ball with your open hand to take it back.
+ - Press F or F11 to toggle fullscreen.
+ - Move the mouse out of the window, onto the top HUD bar, or keep it still
+   for 4 seconds to watch the cat calm down, stroll, sit, groom, or sleep.
  - Esc or window close to quit.
 """
 
@@ -27,11 +28,11 @@ with warnings.catch_warnings():
     from pygame.math import Vector2
 
 # --- Config ---
-WIDTH, HEIGHT = 1024, 768
+WIDTH, HEIGHT = 1280, 720
 FPS = 60
 
 WALL_THICKNESS = 28
-HUD_HEIGHT = 68
+HUD_HEIGHT = 64
 PLAY_RECT = pygame.Rect(
     WALL_THICKNESS,
     HUD_HEIGHT,
@@ -59,14 +60,14 @@ HAND_COLOR = (255, 218, 185)
 HAND_OUTLINE = (110, 75, 55)
 
 # Physics & behavior
-MAX_SPEED = 215.0
-FLEE_SPEED = 265.0
-STROLL_SPEED = 92.0
-ACCELERATION = 720.0
+MAX_SPEED = 220.0
+FLEE_SPEED = 275.0
+STROLL_SPEED = 94.0
+ACCELERATION = 740.0
 DAMPING = 2.2
 GRAVITY = 1050.0
 CATCH_DISTANCE = 32.0
-MIN_THROW_DISTANCE = 200.0
+MIN_THROW_DISTANCE = 220.0
 THROW_LOCK_TIME = 0.35
 GRAB_LOCK_TIME = 0.55
 CAT_CATCH_COOLDOWN = 0.65
@@ -89,43 +90,95 @@ class Furniture:
     style: str
 
 
+@dataclass
+class FloorPillow:
+    pos: Vector2
+    vel: Vector2
+    radius: float
+    height: float
+    angle: float
+    color: tuple
+    trim_color: tuple
+    button_color: tuple
+    shape: str      # "square" | "round"
+
+
 def create_living_room_furniture():
-    """Return all living-room furniture items with generous walkways and no corner pockets."""
+    """Return all widescreen living-room furniture items with generous walkways."""
     return [
-        Furniture("Sofa", pygame.Rect(322, 104, 360, 104), "jumpable", 28.0, "sofa"),
-        Furniture("Coffee Table", pygame.Rect(408, 358, 208, 114), "jumpable", 24.0, "coffee_table"),
-        Furniture("Armchair", pygame.Rect(792, 326, 128, 134), "jumpable", 28.0, "armchair"),
-        Furniture("Ottoman", pygame.Rect(162, 382, 96, 96), "jumpable", 20.0, "ottoman"),
-        Furniture("Cat Bed", pygame.Rect(78, 608, 106, 96), "jumpable", 6.0, "cat_bed"),
-        Furniture("TV Stand", pygame.Rect(362, 672, 300, 64), "solid", 54.0, "tv_stand"),
-        Furniture("Houseplant", pygame.Rect(34, 74, 76, 76), "solid", 58.0, "plant"),
-        Furniture("Floor Lamp", pygame.Rect(928, 74, 62, 62), "solid", 64.0, "lamp"),
+        Furniture("Sofa", pygame.Rect(430, 96, 420, 102), "jumpable", 28.0, "sofa"),
+        Furniture("Coffee Table", pygame.Rect(530, 336, 220, 114), "jumpable", 24.0, "coffee_table"),
+        Furniture("Armchair", pygame.Rect(1024, 308, 134, 140), "jumpable", 28.0, "armchair"),
+        Furniture("Ottoman", pygame.Rect(178, 344, 100, 100), "jumpable", 20.0, "ottoman"),
+        Furniture("Cat Bed", pygame.Rect(74, 566, 112, 98), "jumpable", 6.0, "cat_bed"),
+        Furniture("TV Stand", pygame.Rect(470, 624, 340, 64), "solid", 54.0, "tv_stand"),
+        Furniture("Houseplant", pygame.Rect(34, 70, 76, 76), "solid", 58.0, "plant"),
+        Furniture("Floor Lamp", pygame.Rect(1182, 70, 62, 62), "solid", 64.0, "lamp"),
+    ]
+
+
+def create_floor_pillows():
+    """Create soft jumpable & gently nudgeable floor pillows around the living room."""
+    return [
+        FloorPillow(
+            pos=Vector2(348, 505),
+            vel=Vector2(0, 0),
+            radius=30.0,
+            height=12.0,
+            angle=0.22,
+            color=(212, 128, 96),
+            trim_color=(168, 92, 66),
+            button_color=(244, 216, 194),
+            shape="square",
+        ),
+        FloorPillow(
+            pos=Vector2(932, 232),
+            vel=Vector2(0, 0),
+            radius=28.0,
+            height=12.0,
+            angle=-0.30,
+            color=(112, 162, 152),
+            trim_color=(78, 122, 114),
+            button_color=(220, 238, 232),
+            shape="round",
+        ),
+        FloorPillow(
+            pos=Vector2(952, 518),
+            vel=Vector2(0, 0),
+            radius=29.0,
+            height=12.0,
+            angle=0.42,
+            color=(222, 178, 92),
+            trim_color=(176, 134, 58),
+            button_color=(248, 234, 198),
+            shape="square",
+        ),
     ]
 
 
 FLEE_WAYPOINTS = [
-    Vector2(502, 156),  # Sofa center
-    Vector2(375, 156),  # Sofa left
-    Vector2(625, 156),  # Sofa right
-    Vector2(512, 415),  # Coffee table
-    Vector2(210, 430),  # Ottoman
-    Vector2(850, 392),  # Armchair
-    Vector2(250, 260),  # Upper-left rug
-    Vector2(760, 250),  # Upper-right rug
-    Vector2(270, 560),  # Lower-left floor
-    Vector2(755, 565),  # Lower-right floor
-    Vector2(145, 645),  # Cat bed
-    Vector2(870, 610),  # Open lower-right
+    Vector2(640, 148),   # Sofa center
+    Vector2(490, 148),   # Sofa left
+    Vector2(790, 148),   # Sofa right
+    Vector2(640, 393),   # Coffee table
+    Vector2(228, 394),   # Ottoman
+    Vector2(1088, 378),  # Armchair
+    Vector2(310, 235),   # Upper-left rug
+    Vector2(960, 235),   # Upper-right rug
+    Vector2(320, 560),   # Lower-left floor
+    Vector2(960, 560),   # Lower-right floor
+    Vector2(130, 615),   # Cat bed
+    Vector2(1135, 575),  # Open lower-right
 ]
 
 COZY_SPOTS = [
-    ("cat_bed", Vector2(131, 656)),   # Corner cat bed (favorite nap spot)
-    ("sofa", Vector2(410, 158)),      # Sofa left cushion
-    ("sofa", Vector2(595, 158)),      # Sofa right cushion
-    ("armchair", Vector2(852, 392)),  # Armchair
-    ("ottoman", Vector2(210, 430)),   # Ottoman
-    ("rug", Vector2(512, 520)),       # Warm rug spot
-    ("lamp", Vector2(835, 195)),      # Warm spot near floor lamp
+    ("cat_bed", Vector2(130, 615)),    # Corner cat bed
+    ("sofa", Vector2(515, 148)),       # Sofa left cushion
+    ("sofa", Vector2(765, 148)),       # Sofa right cushion
+    ("armchair", Vector2(1086, 378)),  # Armchair
+    ("ottoman", Vector2(228, 394)),    # Ottoman
+    ("rug", Vector2(640, 505)),        # Warm rug spot
+    ("lamp", Vector2(1110, 185)),      # Warm spot near floor lamp
 ]
 
 _STEER_DIRS = [
@@ -150,7 +203,7 @@ def clamp_point(pos, margin_x=0, margin_y=0, bounds=PLAY_RECT):
     )
 
 
-def surface_height_at(pos, furniture):
+def surface_height_at(pos, furniture, pillows=None):
     """Return the walkable elevation `z` at `pos` (0.0 on the floor)."""
     px, py = int(pos.x), int(pos.y)
     best = 0.0
@@ -158,6 +211,10 @@ def surface_height_at(pos, furniture):
         if item.kind == "jumpable" and item.rect.collidepoint(px, py):
             if item.height > best:
                 best = item.height
+    if pillows:
+        for p in pillows:
+            if (pos - p.pos).length() <= p.radius + 4.0 and p.height > best:
+                best = p.height
     return best
 
 
@@ -224,14 +281,21 @@ def pick_flee_waypoint(cat_pos, cursor_pos, current_target=None, recent_targets=
     return best_wp.copy()
 
 
-def pick_cozy_spot(cat_pos, prefer_bed=False):
-    """Pick a relaxed living-room spot for sitting, grooming, or napping."""
+def pick_cozy_spot(cat_pos, prefer_bed=False, pillows=None):
+    """Pick a relaxed living-room spot (including floor pillows) for sitting, grooming, or napping."""
     candidates = []
     for kind, spot in COZY_SPOTS:
         weight = 3.0 if (prefer_bed and kind in ("cat_bed", "sofa")) else 1.0
         if (spot - cat_pos).length() < 55.0:
             weight *= 0.25
         candidates.append((kind, spot, weight))
+    if pillows:
+        for p in pillows:
+            weight = 2.2 if prefer_bed else 1.5
+            if (p.pos - cat_pos).length() < 55.0:
+                weight *= 0.25
+            candidates.append(("pillow", p.pos.copy(), weight))
+
     total = sum(w for _, _, w in candidates)
     r = random.uniform(0, total)
     acc = 0.0
@@ -296,15 +360,13 @@ def choose_clear_direction(pos, target_pos, current_angle, furniture, avoid_poin
     return best_dir
 
 
-def resolve_solid_collisions(pos, vel, furniture, radius=CAT_RADIUS):
-    """Softly slide out of any solid furniture rect without jittery bouncing."""
+def resolve_rect_collisions(pos, vel, rects, radius):
+    """Softly slide a circle out of a list of pygame.Rect obstacles without jittery bouncing."""
     out_pos = Vector2(pos)
     out_vel = Vector2(vel)
-    for item in furniture:
-        if item.kind != "solid":
-            continue
-        closest_x = max(item.rect.left, min(out_pos.x, item.rect.right))
-        closest_y = max(item.rect.top, min(out_pos.y, item.rect.bottom))
+    for rect in rects:
+        closest_x = max(rect.left, min(out_pos.x, rect.right))
+        closest_y = max(rect.top, min(out_pos.y, rect.bottom))
         dx = out_pos.x - closest_x
         dy = out_pos.y - closest_y
         dist_sq = dx * dx + dy * dy
@@ -316,29 +378,75 @@ def resolve_solid_collisions(pos, vel, furniture, radius=CAT_RADIUS):
                 out_pos.x = closest_x + nx * radius
                 out_pos.y = closest_y + ny * radius
             else:
-                left_pen = abs(out_pos.x - item.rect.left)
-                right_pen = abs(item.rect.right - out_pos.x)
-                top_pen = abs(out_pos.y - item.rect.top)
-                bot_pen = abs(item.rect.bottom - out_pos.y)
+                left_pen = abs(out_pos.x - rect.left)
+                right_pen = abs(rect.right - out_pos.x)
+                top_pen = abs(out_pos.y - rect.top)
+                bot_pen = abs(rect.bottom - out_pos.y)
                 m = min(left_pen, right_pen, top_pen, bot_pen)
                 if m == left_pen:
                     nx, ny = -1.0, 0.0
-                    out_pos.x = item.rect.left - radius
+                    out_pos.x = rect.left - radius
                 elif m == right_pen:
                     nx, ny = 1.0, 0.0
-                    out_pos.x = item.rect.right + radius
+                    out_pos.x = rect.right + radius
                 elif m == top_pen:
                     nx, ny = 0.0, -1.0
-                    out_pos.y = item.rect.top - radius
+                    out_pos.y = rect.top - radius
                 else:
                     nx, ny = 0.0, 1.0
-                    out_pos.y = item.rect.bottom + radius
+                    out_pos.y = rect.bottom + radius
 
             vn = out_vel.x * nx + out_vel.y * ny
             if vn < 0:
                 out_vel.x -= vn * nx
                 out_vel.y -= vn * ny
     return out_pos, out_vel
+
+
+def resolve_solid_collisions(pos, vel, furniture, radius=CAT_RADIUS):
+    """Softly slide out of any solid furniture rect without jittery bouncing."""
+    solid_rects = [item.rect for item in furniture if item.kind == "solid"]
+    return resolve_rect_collisions(pos, vel, solid_rects, radius)
+
+
+def update_floor_pillows(pillows, cat_pos, cat_vel, cat_z, furniture, dt):
+    """Allow the cat to gently nudge loose floor pillows when sprinting past."""
+    all_furniture_rects = [item.rect for item in furniture]
+    speed = cat_vel.length()
+
+    for p in pillows:
+        # Gentle nudge when cat sprints against the pillow at floor level
+        if speed > 135.0 and cat_z < 9.0:
+            delta = p.pos - cat_pos
+            dist = delta.length()
+            touch_dist = CAT_RADIUS + p.radius - 4.0
+            if 1.0 < dist < touch_dist:
+                push_dir = delta / dist
+                # Only nudge if cat is actually moving toward/across the pillow
+                approach = cat_vel.dot(push_dir)
+                if approach > 40.0:
+                    p.vel += push_dir * min(105.0, approach * 0.42) * dt * 12.0
+                    p.angle += (cat_vel.x * push_dir.y - cat_vel.y * push_dir.x) * 0.00018
+
+        p.pos += p.vel * dt
+        p.vel *= math.exp(-8.5 * dt)
+        if p.vel.length() < 3.0:
+            p.vel = Vector2(0, 0)
+
+        p.pos, p.vel = resolve_rect_collisions(p.pos, p.vel, all_furniture_rects, p.radius + 4.0)
+        p.pos = clamp_point(p.pos, p.radius + 8.0, p.radius + 8.0)
+
+    # Keep floor pillows from overlapping each other
+    for i in range(len(pillows)):
+        for j in range(i + 1, len(pillows)):
+            a, b = pillows[i], pillows[j]
+            delta = b.pos - a.pos
+            dist = delta.length()
+            min_d = a.radius + b.radius + 4.0
+            if 0.001 < dist < min_d:
+                sep = (delta / dist) * ((min_d - dist) * 0.5)
+                a.pos = clamp_point(a.pos - sep, a.radius + 8.0, a.radius + 8.0)
+                b.pos = clamp_point(b.pos + sep, b.radius + 8.0, b.radius + 8.0)
 
 
 def compute_flee_direction(cat_pos, cursor_pos, furniture, current_angle=0.0, flee_target=None):
@@ -361,6 +469,42 @@ def _draw_ellipse_shadow(surface, center, rx, ry, alpha=60):
     surface.blit(sh, (int(center.x - rx), int(center.y - ry)))
 
 
+def draw_floor_pillow(surface, pillow):
+    """Draw a plush, softly shadowed floor cushion."""
+    px, py = int(pillow.pos.x), int(pillow.pos.y)
+    r = int(pillow.radius)
+    _draw_ellipse_shadow(surface, Vector2(px + 4, py + 6), r * 1.02, r * 0.92, alpha=48)
+
+    if pillow.shape == "round":
+        pygame.draw.circle(surface, pillow.trim_color, (px, py), r)
+        pygame.draw.circle(surface, pillow.color, (px, py), r - 3)
+        # Subtle tufted creases
+        for k in range(6):
+            a = pillow.angle + k * (math.pi / 3.0)
+            ex = px + int(math.cos(a) * (r - 6))
+            ey = py + int(math.sin(a) * (r - 6))
+            pygame.draw.line(surface, pillow.trim_color, (px, py), (ex, ey), 1)
+        pygame.draw.circle(surface, pillow.trim_color, (px, py), 6)
+        pygame.draw.circle(surface, pillow.button_color, (px, py), 4)
+    else:
+        # Rotated plush square floor cushion
+        box_size = r * 2 + 12
+        tmp = pygame.Surface((box_size, box_size), pygame.SRCALPHA)
+        body = pygame.Rect(6, 6, r * 2, r * 2)
+        pygame.draw.rect(tmp, pillow.trim_color, body, border_radius=14)
+        pygame.draw.rect(tmp, pillow.color, body.inflate(-6, -6), border_radius=12)
+        c = box_size // 2
+        # Soft corner creases
+        for dx, dy in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
+            pygame.draw.line(tmp, pillow.trim_color, (c, c), (c + dx * (r - 8), c + dy * (r - 8)), 1)
+        pygame.draw.circle(tmp, pillow.trim_color, (c, c), 6)
+        pygame.draw.circle(tmp, pillow.button_color, (c, c), 4)
+
+        rotated = pygame.transform.rotate(tmp, -math.degrees(pillow.angle))
+        rect = rotated.get_rect(center=(px, py))
+        surface.blit(rotated, rect)
+
+
 def draw_furniture_item(surface, item):
     r = item.rect
     if item.style == "sofa":
@@ -378,8 +522,16 @@ def draw_furniture_item(surface, item):
             cush = pygame.Rect(r.x + 34 + i * (cw + 2), r.y + 34, cw - 2, r.height - 42)
             pygame.draw.rect(surface, (104, 138, 156), cush, border_radius=10)
             pygame.draw.rect(surface, (74, 104, 122), cush, 2, border_radius=10)
-        pillow = pygame.Rect(r.x + 40, r.y + 36, 36, 28)
-        pygame.draw.rect(surface, (214, 146, 98), pillow, border_radius=8)
+        # Throw cushions on both ends of the sofa
+        p1 = pygame.Rect(r.x + 38, r.y + 34, 38, 30)
+        pygame.draw.rect(surface, (176, 104, 68), p1.inflate(2, 2), border_radius=9)
+        pygame.draw.rect(surface, (218, 142, 96), p1, border_radius=8)
+        p2 = pygame.Rect(r.right - 80, r.y + 36, 40, 28)
+        pygame.draw.rect(surface, (176, 142, 64), p2.inflate(2, 2), border_radius=9)
+        pygame.draw.rect(surface, (228, 188, 98), p2, border_radius=8)
+        p3 = pygame.Rect(r.x + 68, r.y + 42, 30, 24)
+        pygame.draw.rect(surface, (206, 196, 178), p3.inflate(2, 2), border_radius=8)
+        pygame.draw.rect(surface, (238, 228, 210), p3, border_radius=7)
 
     elif item.style == "coffee_table":
         _draw_shadow(surface, r, radius=14, offset=(7, 9), alpha=58)
@@ -387,12 +539,12 @@ def draw_furniture_item(surface, item):
         pygame.draw.rect(surface, (96, 62, 38), r, 2, border_radius=12)
         inner = r.inflate(-14, -14)
         pygame.draw.rect(surface, (148, 102, 68), inner, border_radius=8)
-        mag = pygame.Rect(r.x + 24, r.y + 24, 54, 40)
+        mag = pygame.Rect(r.x + 26, r.y + 24, 56, 40)
         pygame.draw.rect(surface, (238, 232, 218), mag, border_radius=4)
-        pygame.draw.rect(surface, (182, 122, 92), pygame.Rect(mag.x + 6, mag.y + 6, 42, 12), border_radius=2)
-        pygame.draw.circle(surface, (220, 212, 198), (r.right - 44, r.y + 42), 13)
-        pygame.draw.circle(surface, (245, 245, 245), (r.right - 44, r.y + 42), 9)
-        pygame.draw.circle(surface, (112, 74, 48), (r.right - 44, r.y + 42), 6)
+        pygame.draw.rect(surface, (182, 122, 92), pygame.Rect(mag.x + 6, mag.y + 6, 44, 12), border_radius=2)
+        pygame.draw.circle(surface, (220, 212, 198), (r.right - 46, r.y + 42), 13)
+        pygame.draw.circle(surface, (245, 245, 245), (r.right - 46, r.y + 42), 9)
+        pygame.draw.circle(surface, (112, 74, 48), (r.right - 46, r.y + 42), 6)
 
     elif item.style == "armchair":
         _draw_shadow(surface, r, radius=18, offset=(6, 9), alpha=60)
@@ -405,6 +557,10 @@ def draw_furniture_item(surface, item):
         seat = pygame.Rect(r.x + 10, r.y + 27, r.width - 42, r.height - 54)
         pygame.draw.rect(surface, (178, 120, 98), seat, border_radius=10)
         pygame.draw.rect(surface, (134, 84, 66), seat, 2, border_radius=10)
+        # Cozy accent cushion tucked against the backrest
+        cushion = pygame.Rect(r.right - 56, r.centery - 22, 24, 44)
+        pygame.draw.rect(surface, (194, 182, 162), cushion.inflate(2, 2), border_radius=8)
+        pygame.draw.rect(surface, (236, 224, 202), cushion, border_radius=7)
 
     elif item.style == "ottoman":
         _draw_ellipse_shadow(surface, Vector2(r.centerx + 5, r.centery + 7), r.width / 2, r.height / 2, alpha=58)
@@ -425,7 +581,7 @@ def draw_furniture_item(surface, item):
         _draw_shadow(surface, r, radius=10, offset=(5, 6), alpha=65)
         pygame.draw.rect(surface, (98, 72, 54), r, border_radius=8)
         pygame.draw.rect(surface, (68, 48, 36), r, 2, border_radius=8)
-        tv = pygame.Rect(r.x + 42, r.y + 24, r.width - 84, 14)
+        tv = pygame.Rect(r.x + 48, r.y + 24, r.width - 96, 14)
         pygame.draw.rect(surface, (36, 38, 44), tv, border_radius=4)
         pygame.draw.rect(surface, (76, 86, 102), pygame.Rect(tv.x + 6, tv.y + 3, tv.width - 12, 4), border_radius=2)
 
@@ -447,16 +603,16 @@ def draw_furniture_item(surface, item):
     elif item.style == "lamp":
         cx, cy = r.center
         _draw_ellipse_shadow(surface, Vector2(cx + 5, cy + 7), 28, 28, alpha=52)
-        glow = pygame.Surface((130, 130), pygame.SRCALPHA)
-        pygame.draw.circle(glow, (255, 236, 175, 48), (65, 65), 62)
-        surface.blit(glow, (cx - 65, cy - 65))
+        glow = pygame.Surface((136, 136), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 236, 175, 48), (68, 68), 65)
+        surface.blit(glow, (cx - 68, cy - 68))
         pygame.draw.circle(surface, (238, 224, 188), (cx, cy), 25)
         pygame.draw.circle(surface, (186, 168, 132), (cx, cy), 25, 2)
         pygame.draw.circle(surface, (255, 246, 215), (cx, cy), 10)
 
 
 def build_living_room_surface(furniture):
-    """Pre-render the living-room floor, walls, rug, and jumpable furniture for smooth 60 FPS."""
+    """Pre-render the widescreen living-room floor, walls, rug, and static jumpable furniture."""
     surf = pygame.Surface((WIDTH, HEIGHT))
     surf.fill(WALL_COLOR)
 
@@ -487,7 +643,7 @@ def build_living_room_surface(furniture):
 
     pygame.draw.rect(surf, BASEBOARD_COLOR, PLAY_RECT.inflate(10, 10), 6, border_radius=4)
 
-    rug = pygame.Rect(236, 252, 552, 344)
+    rug = pygame.Rect(290, 224, 700, 340)
     pygame.draw.rect(surf, (218, 206, 188), rug, border_radius=10)
     pygame.draw.rect(surf, (176, 126, 98), rug.inflate(-14, -14), 5, border_radius=8)
     pygame.draw.rect(surf, (124, 146, 134), rug.inflate(-32, -32), 2, border_radius=6)
@@ -499,8 +655,8 @@ def build_living_room_surface(furniture):
         if item.kind == "jumpable":
             draw_furniture_item(surf, item)
 
-    pygame.draw.rect(surf, HUD_BG, pygame.Rect(0, 0, WIDTH, HUD_HEIGHT - 6))
-    pygame.draw.line(surf, (92, 82, 74), (0, HUD_HEIGHT - 6), (WIDTH, HUD_HEIGHT - 6), 2)
+    pygame.draw.rect(surf, HUD_BG, pygame.Rect(0, 0, WIDTH, HUD_HEIGHT - 4))
+    pygame.draw.line(surf, (92, 82, 74), (0, HUD_HEIGHT - 4), (WIDTH, HUD_HEIGHT - 4), 2)
 
     return surf
 
@@ -619,16 +775,13 @@ def draw_cat(
             size * 0.48,
             alpha=64,
         )
-        # Curled round sleeping body
         pygame.draw.circle(surface, CAT_COLOR, (int(center.x), int(center.y)), int(sr * 0.50))
-        # Subtle curved back stripes
         for a_deg in (-35, 0, 35):
             rad = angle + math.radians(a_deg + 160)
             p1 = center + Vector2(math.cos(rad), math.sin(rad)) * (sr * 0.16)
             p2 = center + Vector2(math.cos(rad), math.sin(rad)) * (sr * 0.44)
             pygame.draw.line(surface, CAT_STRIPE, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), max(2, int(sr * 0.06)))
 
-        # Tail wrapped snugly around the body
         wrap_pts = []
         for i in range(10):
             t = i / 9.0
@@ -638,12 +791,10 @@ def draw_cat(
         pygame.draw.lines(surface, CAT_STRIPE, False, wrap_pts, max(3, int(sr * 0.12)))
         pygame.draw.lines(surface, CAT_COLOR, False, wrap_pts, max(2, int(sr * 0.09)))
 
-        # Head tucked inward
         head_pos = center + forward * (sr * 0.28) + right * (sr * 0.12)
         pygame.draw.circle(surface, CAT_COLOR, (int(head_pos.x), int(head_pos.y)), int(sr * 0.34))
         _draw_ears(surface, head_pos, forward, right, sr * 0.85)
 
-        # Peaceful closed eyes (tiny curved dashes)
         eye_base = head_pos + forward * (sr * 0.12)
         for side in (-1, 1):
             ep = eye_base + right * (side * sr * 0.12)
@@ -654,7 +805,6 @@ def draw_cat(
         nose = head_pos + forward * (sr * 0.27)
         pygame.draw.circle(surface, CAT_INNER_EAR, (int(nose.x), int(nose.y)), max(2, int(sr * 0.04)))
 
-        # Floating Zzz bubbles
         if zzz_font is not None:
             for idx, label in enumerate(("z", "z", "Z")):
                 cyc = (mood_phase * 0.45 + idx * 0.33) % 1.0
@@ -667,7 +817,6 @@ def draw_cat(
                     surface.blit(z_surf, (int(zx), int(zy)))
         return
 
-    # Ground shadow stays on the surface below the cat
     sh_scale = max(0.58, 1.0 - air * 0.0045)
     _draw_ellipse_shadow(
         surface,
@@ -677,7 +826,6 @@ def draw_cat(
         alpha=max(26, int(72 - air * 0.4)),
     )
 
-    # Multi-segment curved wagging tail
     tail_pts = []
     tail_base = center - forward * (s * (0.42 if mood in ("sit", "groom") else 0.52))
     tail_amp = 0.16 if mood in ("sit", "groom") else 0.24
@@ -689,9 +837,7 @@ def draw_cat(
     pygame.draw.lines(surface, CAT_STRIPE, False, tail_pts, max(3, int(s * 0.12)))
     pygame.draw.lines(surface, CAT_COLOR, False, tail_pts, max(2, int(s * 0.09)))
 
-    # Paws
     if mood in ("sit", "groom"):
-        # Neatly tucked front paws
         for side in (-1, 1):
             paw_pos = center + forward * (s * 0.38) + right * (side * s * 0.17)
             pygame.draw.circle(surface, CAT_STRIPE, (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.11)))
@@ -711,26 +857,22 @@ def draw_cat(
             pygame.draw.circle(surface, (250, 200, 140), (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.09)))
         body_circles = [(-0.24, 0.40), (0.0, 0.44), (0.24, 0.40)]
 
-    # Oriented body
     for bf, brad in body_circles:
         bp = center + forward * (s * bf)
         pygame.draw.circle(surface, CAT_COLOR, (int(bp.x), int(bp.y)), int(s * brad))
 
-    # Tabby stripes
     stripes = (-0.12, 0.06) if mood in ("sit", "groom") else (-0.18, 0.0, 0.16)
     for sf in stripes:
         sp1 = center + forward * (s * sf) - right * (s * 0.26)
         sp2 = center + forward * (s * sf) + right * (s * 0.26)
         pygame.draw.line(surface, CAT_STRIPE, (int(sp1.x), int(sp1.y)), (int(sp2.x), int(sp2.y)), max(2, int(s * 0.06)))
 
-    # Head (subtle bob & tilt when grooming)
     head_shift = 0.42 if mood in ("sit", "groom") else 0.56
     groom_bob = math.sin(mood_phase * 7.5) * (s * 0.04) if mood == "groom" else 0.0
     head_pos = center + forward * (s * head_shift + groom_bob)
     pygame.draw.circle(surface, CAT_COLOR, (int(head_pos.x), int(head_pos.y)), int(s * 0.40))
     _draw_ears(surface, head_pos, forward, right, s)
 
-    # Eyes (blinking in sit, content half-closed in groom)
     blinking = mood == "sit" and (mood_phase % 3.4) > 3.22
     eye_base = head_pos + forward * (s * 0.15)
     sep = s * 0.15
@@ -745,11 +887,9 @@ def draw_cat(
             look = forward * (s * 0.03)
             pygame.draw.circle(surface, PUPIL_COLOR, (int(ep.x + look.x), int(ep.y + look.y)), max(2, int(s * 0.045)))
 
-    # Nose
     nose = head_pos + forward * (s * 0.33)
     pygame.draw.circle(surface, CAT_INNER_EAR, (int(nose.x), int(nose.y)), max(2, int(s * 0.045)))
 
-    # Animated grooming paw rubbing cheek/face
     if mood == "groom":
         rub = math.sin(mood_phase * 7.5)
         lick_paw = head_pos + forward * (s * (0.24 + 0.08 * rub)) + right * (s * (0.26 - 0.10 * rub))
@@ -759,7 +899,9 @@ def draw_cat(
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    fullscreen = False
+    base_flags = pygame.SCALED
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), base_flags)
     pygame.display.set_caption("Cat Chasing Ball — Living Room")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 23)
@@ -767,23 +909,25 @@ def main():
     pygame.mouse.set_visible(False)
 
     furniture = create_living_room_furniture()
+    pillows = create_floor_pillows()
     room_bg = build_living_room_surface(furniture)
     solid_items = [f for f in furniture if f.kind == "solid"]
 
-    cat_pos = Vector2(280, 520)
+    cat_pos = Vector2(360, 480)
     cat_vel = Vector2(0, 0)
     cat_angle = 0.0
-    cat_z = surface_height_at(cat_pos, furniture)
+    cat_z = surface_height_at(cat_pos, furniture, pillows)
     cat_vz = 0.0
     walk_phase = 0.0
     tail_phase = 0.0
 
-    cursor_pos = clamp_point(Vector2(pygame.mouse.get_pos()), MOUSE_RADIUS, MOUSE_RADIUS)
+    raw_mouse = Vector2(pygame.mouse.get_pos())
+    cursor_pos = clamp_point(raw_mouse, MOUSE_RADIUS, MOUSE_RADIUS)
     prev_cursor_pos = cursor_pos.copy()
     hand_speed = 0.0
     ball_pos = cursor_pos.copy()
     ball_vel = Vector2(0, 0)
-    ball_z = surface_height_at(ball_pos, furniture)
+    ball_z = surface_height_at(ball_pos, furniture, pillows)
     ball_vz = 0.0
     ball_state = "held"  # "held" | "loose" | "cat"
 
@@ -795,7 +939,6 @@ def main():
     flee_retarget_timer = 0.0
     recent_flee_waypoints = deque(maxlen=3)
 
-    # Idle / autonomous cat mood state
     outside_timer = 0.0
     mouse_idle_timer = 0.0
     cat_mood = "active"  # "active" | "stroll" | "sit" | "groom" | "sleep"
@@ -819,7 +962,7 @@ def main():
     def choose_next_idle_mood(arrived_kind=None):
         nonlocal cat_mood, mood_timer, mood_phase, cozy_target, cozy_kind, sit_look_angle, sit_look_timer
         mood_phase = 0.0
-        if arrived_kind in ("cat_bed", "sofa") and random.random() < 0.55:
+        if arrived_kind in ("cat_bed", "sofa", "pillow") and random.random() < 0.58:
             cat_mood = "sleep"
             mood_timer = random.uniform(7.5, 12.0)
             return
@@ -833,7 +976,7 @@ def main():
             cat_mood = random.choice(["groom", "stroll", "sleep"])
 
         if cat_mood == "stroll":
-            cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=(random.random() < 0.6))
+            cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=(random.random() < 0.6), pillows=pillows)
             mood_timer = random.uniform(6.0, 10.0)
         elif cat_mood == "sit":
             mood_timer = random.uniform(3.5, 6.0)
@@ -853,7 +996,7 @@ def main():
             cat_catch_cooldown = max(0.0, cat_catch_cooldown - dt)
             flee_retarget_timer = max(0.0, flee_retarget_timer - dt)
 
-            pointer_inside = bool(pygame.mouse.get_focused())
+            pointer_focused = bool(pygame.mouse.get_focused())
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -861,57 +1004,73 @@ def main():
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
+                    elif event.key in (pygame.K_f, pygame.K_F11):
+                        fullscreen = not fullscreen
+                        flags = base_flags | pygame.FULLSCREEN if fullscreen else base_flags
+                        screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
                 elif event.type == pygame.MOUSEMOTION:
-                    new_pos = clamp_point(Vector2(event.pos), MOUSE_RADIUS, MOUSE_RADIUS)
-                    if (new_pos - cursor_pos).length() > 1.5:
+                    raw_mouse = Vector2(event.pos)
+                    new_pos = clamp_point(raw_mouse, MOUSE_RADIUS, MOUSE_RADIUS)
+                    if raw_mouse.y >= HUD_HEIGHT and (new_pos - cursor_pos).length() > 1.5:
                         wake_cat()
                     cursor_pos = new_pos
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:
-                        cursor_pos = clamp_point(Vector2(event.pos), MOUSE_RADIUS, MOUSE_RADIUS)
-                        wake_cat()
-                        if ball_state == "held":
-                            dest = random_target_away_from(cat_pos, furniture)
-                            flight_time = 0.52
-                            ball_vel = (dest - ball_pos) / flight_time
-                            ball_z = max(surface_height_at(ball_pos, furniture) + 12.0, 22.0)
-                            ball_vz = 290.0
-                            ball_state = "loose"
-                            throw_lock_timer = THROW_LOCK_TIME
-                        elif ball_state == "loose" and (cursor_pos - ball_pos).length() <= PICKUP_DISTANCE:
-                            ball_state = "held"
-                            ball_vel = Vector2(0, 0)
-                            ball_vz = 0.0
-                        elif (
-                            ball_state == "cat"
-                            and grab_lock_timer <= 0.0
-                            and (cursor_pos - ball_pos).length() <= TAKE_BACK_DISTANCE
-                        ):
-                            ball_state = "held"
-                            cat_catch_cooldown = CAT_CATCH_COOLDOWN
+                        raw_mouse = Vector2(event.pos)
+                        cursor_pos = clamp_point(raw_mouse, MOUSE_RADIUS, MOUSE_RADIUS)
+                        if raw_mouse.y >= HUD_HEIGHT:
+                            wake_cat()
+                            if ball_state == "held":
+                                dest = random_target_away_from(cat_pos, furniture)
+                                flight_time = 0.52
+                                ball_vel = (dest - ball_pos) / flight_time
+                                ball_z = max(surface_height_at(ball_pos, furniture, pillows) + 12.0, 22.0)
+                                ball_vz = 290.0
+                                ball_state = "loose"
+                                throw_lock_timer = THROW_LOCK_TIME
+                            elif ball_state == "loose" and (cursor_pos - ball_pos).length() <= PICKUP_DISTANCE:
+                                ball_state = "held"
+                                ball_vel = Vector2(0, 0)
+                                ball_vz = 0.0
+                            elif (
+                                ball_state == "cat"
+                                and grab_lock_timer <= 0.0
+                                and (cursor_pos - ball_pos).length() <= TAKE_BACK_DISTANCE
+                            ):
+                                ball_state = "held"
+                                cat_catch_cooldown = CAT_CATCH_COOLDOWN
 
-            if pointer_inside:
-                outside_timer = 0.0
-                live_pos = clamp_point(Vector2(pygame.mouse.get_pos()), MOUSE_RADIUS, MOUSE_RADIUS)
-                moved = (live_pos - prev_cursor_pos).length()
-                hand_speed = hand_speed * 0.75 + (moved / max(dt, 1e-4)) * 0.25
-                if moved > 1.5:
-                    wake_cat()
-                else:
+            if pointer_focused:
+                raw_mouse = Vector2(pygame.mouse.get_pos())
+                on_hud = raw_mouse.y < HUD_HEIGHT
+                if on_hud:
+                    outside_timer += dt
                     mouse_idle_timer += dt
-                cursor_pos = live_pos
-                prev_cursor_pos = live_pos.copy()
+                    hand_speed *= 0.8
+                else:
+                    outside_timer = 0.0
+                    live_pos = clamp_point(raw_mouse, MOUSE_RADIUS, MOUSE_RADIUS)
+                    moved = (live_pos - prev_cursor_pos).length()
+                    hand_speed = hand_speed * 0.75 + (moved / max(dt, 1e-4)) * 0.25
+                    if moved > 1.5:
+                        wake_cat()
+                    else:
+                        mouse_idle_timer += dt
+                    cursor_pos = live_pos
+                    prev_cursor_pos = live_pos.copy()
             else:
+                on_hud = False
                 outside_timer += dt
                 mouse_idle_timer += dt
                 hand_speed *= 0.8
 
-            # Enter calm autonomous mode when cursor leaves window or stays idle
+            pointer_in_room = pointer_focused and not on_hud
+
+            # Enter calm autonomous mode when leaving window, hovering top HUD, or staying still
             idle_triggered = (outside_timer >= OUTSIDE_IDLE_DELAY) or (
                 mouse_idle_timer >= STILL_IDLE_DELAY and ball_state != "loose"
             )
             if idle_triggered and cat_mood == "active":
-                # Drop the stolen ball gently beside the cat before resting
                 if ball_state == "cat":
                     ball_state = "loose"
                     fwd = Vector2(math.cos(cat_angle), math.sin(cat_angle))
@@ -919,10 +1078,9 @@ def main():
                     ball_vz = 60.0
                     flee_target = None
                     recent_flee_waypoints.clear()
-                # Start calm living-room cycle (stroll to a cozy spot or sit/groom right away)
                 if random.random() < 0.65:
                     cat_mood = "stroll"
-                    cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=True)
+                    cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=True, pillows=pillows)
                     mood_timer = random.uniform(6.0, 10.0)
                 else:
                     cat_mood = random.choice(["sit", "groom"])
@@ -931,12 +1089,11 @@ def main():
                     sit_look_timer = 1.6
                 mood_phase = 0.0
 
-            # Pick up loose ball or take it back from the cat when hand is active inside
-            if pointer_inside:
+            if pointer_in_room:
                 if ball_state == "loose" and throw_lock_timer <= 0.0:
                     if (
                         (cursor_pos - ball_pos).length() <= PICKUP_DISTANCE
-                        and ball_z - surface_height_at(ball_pos, furniture) < 35.0
+                        and ball_z - surface_height_at(ball_pos, furniture, pillows) < 35.0
                     ):
                         ball_state = "held"
                         ball_vel = Vector2(0, 0)
@@ -948,11 +1105,11 @@ def main():
                         cat_catch_cooldown = CAT_CATCH_COOLDOWN
                         wake_cat()
 
-            # Update ball physics
+            # Ball physics
             if ball_state == "held":
                 ball_pos = cursor_pos.copy()
                 ball_vel = Vector2(0, 0)
-                ball_z = surface_height_at(ball_pos, furniture)
+                ball_z = surface_height_at(ball_pos, furniture, pillows)
                 ball_vz = 0.0
             elif ball_state == "loose":
                 ball_pos += ball_vel * dt
@@ -970,7 +1127,7 @@ def main():
                     ball_vel.y = -abs(ball_vel.y) * 0.65
 
                 ball_pos, ball_vel = resolve_solid_collisions(ball_pos, ball_vel, furniture, radius=MOUSE_RADIUS + 2)
-                b_ground = surface_height_at(ball_pos, furniture)
+                b_ground = surface_height_at(ball_pos, furniture, pillows)
                 ball_vz -= GRAVITY * dt
                 ball_z += ball_vz * dt
                 if ball_z <= b_ground:
@@ -984,8 +1141,8 @@ def main():
                         if ball_vel.length() < 6.0:
                             ball_vel = Vector2(0, 0)
 
-            # Cat AI steering (active chase/flee vs calm autonomous moods)
-            cat_ground_z = surface_height_at(cat_pos, furniture)
+            # Cat AI steering
+            cat_ground_z = surface_height_at(cat_pos, furniture, pillows)
             desired = Vector2(0, 0)
             speed_cap = MAX_SPEED
 
@@ -995,7 +1152,7 @@ def main():
                 if cat_mood == "stroll":
                     speed_cap = STROLL_SPEED
                     if cozy_target is None:
-                        cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=True)
+                        cozy_kind, cozy_target = pick_cozy_spot(cat_pos, prefer_bed=True, pillows=pillows)
                     to_cozy = cozy_target - cat_pos
                     dist_cozy = to_cozy.length()
                     if dist_cozy <= 24.0 or mood_timer <= 0.0:
@@ -1023,7 +1180,7 @@ def main():
                     hand_dist > 290.0
                     and hand_speed < 65.0
                     and cat_z <= cat_ground_z + 1.0
-                    and (flee_target is None or (flee_target - cat_pos).length() < 95.0 or cat_ground_z >= 18.0)
+                    and (flee_target is None or (flee_target - cat_pos).length() < 95.0 or cat_ground_z >= 12.0)
                 )
                 if safe_pause:
                     desired = Vector2(0, 0)
@@ -1067,7 +1224,6 @@ def main():
                     if dist > 12.0:
                         cat_angle = lerp_angle(cat_angle, math.atan2(move_dir.y, move_dir.x), TURN_SPEED * dt)
 
-            # Accelerate smoothly toward desired velocity
             steer = desired - cat_vel
             if steer.length() > 0:
                 steer_limit = ACCELERATION * dt
@@ -1079,38 +1235,37 @@ def main():
             if cat_vel.length() > speed_cap:
                 cat_vel.scale_to_length(speed_cap)
 
-            # Proactive jumping onto/off living-room furniture
+            # Proactive jumping onto/off living-room furniture & floor pillows
             speed = cat_vel.length()
             if cat_z <= cat_ground_z + 1.0 and speed > 22.0:
                 look_ahead = cat_pos + cat_vel.normalize() * 38.0
-                next_z = surface_height_at(look_ahead, furniture)
-                if next_z > cat_ground_z + 6.0:
-                    jump_peak = (next_z - cat_z) + 28.0
+                next_z = surface_height_at(look_ahead, furniture, pillows)
+                if next_z > cat_ground_z + 5.0:
+                    jump_peak = (next_z - cat_z) + 26.0
                     cat_vz = math.sqrt(2.0 * GRAVITY * jump_peak)
-                elif next_z < cat_ground_z - 6.0:
-                    cat_vz = 155.0
+                elif next_z < cat_ground_z - 5.0:
+                    cat_vz = 150.0
 
-            # Move cat & resolve solid collisions smoothly
             cat_pos += cat_vel * dt
             cat_pos, cat_vel = resolve_solid_collisions(cat_pos, cat_vel, furniture, radius=CAT_RADIUS)
             cat_pos = clamp_point(cat_pos, CAT_RADIUS, CAT_RADIUS)
 
-            # Vertical jump integration
-            new_ground_z = surface_height_at(cat_pos, furniture)
-            if new_ground_z > cat_z + 6.0 and cat_vz <= 0.0:
-                cat_vz = math.sqrt(2.0 * GRAVITY * ((new_ground_z - cat_z) + 22.0))
+            # Update gently nudgeable floor pillows
+            update_floor_pillows(pillows, cat_pos, cat_vel, cat_z, furniture, dt)
+
+            new_ground_z = surface_height_at(cat_pos, furniture, pillows)
+            if new_ground_z > cat_z + 5.0 and cat_vz <= 0.0:
+                cat_vz = math.sqrt(2.0 * GRAVITY * ((new_ground_z - cat_z) + 20.0))
             cat_vz -= GRAVITY * dt
             cat_z += cat_vz * dt
             if cat_z <= new_ground_z:
                 cat_z = new_ground_z
                 cat_vz = 0.0
 
-            # Walk & tail animation phases
             walk_phase += speed * dt * 0.09
             tail_rate = 1.4 if cat_mood in ("sit", "groom", "sleep") else (2.8 + speed * 0.025)
             tail_phase += tail_rate * dt
 
-            # Catch detection (only when cat is actively playing)
             if cat_mood == "active" and ball_state != "cat" and cat_catch_cooldown <= 0.0:
                 horiz_dist = (cat_pos - ball_pos).length()
                 vert_dist = abs(cat_z - ball_z)
@@ -1126,7 +1281,6 @@ def main():
                     cat_vel = flee_dir * FLEE_SPEED
                     cat_angle = math.atan2(flee_dir.y, flee_dir.x)
 
-            # Keep ball carried in front of the cat's mouth while the cat has it
             if ball_state == "cat":
                 forward = Vector2(math.cos(cat_angle), math.sin(cat_angle))
                 ball_pos = clamp_point(cat_pos + forward * (CAT_SIZE * 0.88), MOUSE_RADIUS, MOUSE_RADIUS)
@@ -1135,11 +1289,14 @@ def main():
             # --- Draw ---
             screen.blit(room_bg, (0, 0))
 
+            for pillow in pillows:
+                draw_floor_pillow(screen, pillow)
+
             for item in solid_items:
                 draw_furniture_item(screen, item)
 
             if ball_state == "loose":
-                draw_ball(screen, ball_pos, z=ball_z, ground_z=surface_height_at(ball_pos, furniture))
+                draw_ball(screen, ball_pos, z=ball_z, ground_z=surface_height_at(ball_pos, furniture, pillows))
 
             draw_cat(
                 screen,
@@ -1158,12 +1315,12 @@ def main():
             if ball_state == "cat":
                 draw_ball(screen, ball_pos, z=ball_z, ground_z=new_ground_z)
 
-            if pointer_inside:
+            if pointer_in_room:
                 draw_hand(screen, cursor_pos, holding=(ball_state == "held"))
 
             # HUD
             txt = font.render(
-                "Left-click: toss ball | Touch ball to pick up or take it back | Leave window to let cat rest | Esc: quit",
+                "Left-click: toss ball | F / F11: fullscreen | Hover top bar or stay still: let cat rest | Esc: quit",
                 True,
                 (238, 232, 222),
             )
@@ -1188,7 +1345,7 @@ def main():
                 True,
                 (212, 198, 178),
             )
-            screen.blit(speed_txt, (16, 36))
+            screen.blit(speed_txt, (16, 34))
 
             pygame.display.flip()
     finally:
