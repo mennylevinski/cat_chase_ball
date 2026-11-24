@@ -711,7 +711,23 @@
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
 
-      function drawBall(ctx, pos, z = 0, groundZ = 0) {
+      const CAT_PALETTES = {
+        tabby:   { label: "Orange Tabby", body: "#ee9436", stripe: "#c46a1c", ear: "#f5b4af", paw: "#fac88c", patch: null,      eye: "#ffffff", darkFace: false },
+        tuxedo:  { label: "Tuxedo",       body: "#2c2f36", stripe: "#1b1d22", ear: "#e6a4a4", paw: "#f2f2f2", patch: "#f2f2f2", eye: "#d8f5a2", darkFace: false },
+        gray:    { label: "Gray",         body: "#8c96a4", stripe: "#636c78", ear: "#e8b4b8", paw: "#b9c1cc", patch: null,      eye: "#ffe082", darkFace: false },
+        calico:  { label: "Calico",       body: "#f6efe4", stripe: "#d97a32", ear: "#f2b2ac", paw: "#fffaf2", patch: "#3a3532", eye: "#c5e8a6", darkFace: false },
+        siamese: { label: "Siamese",      body: "#efe2cc", stripe: "#5c4638", ear: "#6a5244", paw: "#5c4638", patch: "#6a5244", eye: "#7ec8ff", darkFace: true  },
+      };
+      const CAT_KEYS = Object.keys(CAT_PALETTES);
+
+      const TOY_LABELS = {
+        ball: "Blue Ball",
+        yarn: "Yarn Ball",
+        mouse: "Toy Mouse",
+      };
+      const TOY_KEYS = Object.keys(TOY_LABELS);
+
+      function drawBall(ctx, pos, z = 0, groundZ = 0, angle = 0) {
         const air = Math.max(0, z - groundZ);
         const shScale = Math.max(0.55, 1.0 - air * 0.005);
         drawShadowEllipse(
@@ -725,12 +741,52 @@
         const bx = pos.x;
         const by = pos.y - z * 0.8;
         const rad = MOUSE_RADIUS * (1.0 + Math.min(0.28, air * 0.003));
-        ctx.fillStyle = "#165caf";
-        ctx.beginPath(); ctx.arc(bx, by, rad + 1, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = MOUSE_COLOR;
-        ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = BALL_HIGHLIGHT;
-        ctx.beginPath(); ctx.arc(bx - Math.max(2, rad / 3), by - Math.max(2, rad / 3), Math.max(2, rad / 4), 0, Math.PI * 2); ctx.fill();
+
+        if (toyType === "yarn") {
+          ctx.fillStyle = "#a62b4f";
+          ctx.beginPath(); ctx.arc(bx, by, rad + 1, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#e04872";
+          ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#ff9bb6";
+          ctx.lineWidth = 1.8;
+          ctx.beginPath(); ctx.arc(bx - 2, by, rad * 0.65, -0.7, 1.5); ctx.stroke();
+          ctx.beginPath(); ctx.arc(bx + 3, by - 2, rad * 0.55, 1.8, 4.1); ctx.stroke();
+          ctx.beginPath(); ctx.arc(bx, by + 3, rad * 0.5, 3.3, 5.5); ctx.stroke();
+          ctx.strokeStyle = "#e04872";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(bx - rad, by + 2);
+          ctx.quadraticCurveTo(bx - rad - 9, by + 10, bx - rad - 15, by + 2);
+          ctx.stroke();
+        } else if (toyType === "mouse") {
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.rotate(angle);
+          ctx.strokeStyle = "#e6a4a4";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(-12, 0);
+          ctx.quadraticCurveTo(-19, -6, -24, 2);
+          ctx.stroke();
+          ctx.fillStyle = "#7a8088";
+          ctx.beginPath(); ctx.ellipse(0, 0, 14, 9.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#9aa0a8";
+          ctx.beginPath(); ctx.ellipse(0, 0, 13, 8.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#e8a8a8";
+          ctx.beginPath(); ctx.arc(4, -7, 4, 0, Math.PI * 2); ctx.arc(4, 7, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#222222";
+          ctx.beginPath(); ctx.arc(8.5, -3, 1.6, 0, Math.PI * 2); ctx.arc(8.5, 3, 1.6, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#f29494";
+          ctx.beginPath(); ctx.arc(13, 0, 2.2, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.fillStyle = "#165caf";
+          ctx.beginPath(); ctx.arc(bx, by, rad + 1, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = MOUSE_COLOR;
+          ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = BALL_HIGHLIGHT;
+          ctx.beginPath(); ctx.arc(bx - Math.max(2, rad / 3), by - Math.max(2, rad / 3), Math.max(2, rad / 4), 0, Math.PI * 2); ctx.fill();
+        }
       }
 
       function drawHand(ctx, pos, holding = false) {
@@ -773,7 +829,7 @@
         }
       }
 
-      function drawEars(ctx, hx, hy, fx, fy, rx, ry, s) {
+      function drawEars(ctx, hx, hy, fx, fy, rx, ry, s, pal) {
         for (const side of [-1, 1]) {
           const outer = [
             { x: hx - fx * (s * 0.06) + rx * (side * s * 0.18), y: hy - fy * (s * 0.06) + ry * (side * s * 0.18) },
@@ -786,14 +842,14 @@
             x: centX + (p.x - centX) * 0.55,
             y: centY + (p.y - centY) * 0.55,
           }));
-          ctx.fillStyle = CAT_COLOR;
+          ctx.fillStyle = pal.darkFace ? pal.patch : pal.body;
           ctx.beginPath();
           ctx.moveTo(outer[0].x, outer[0].y);
           ctx.lineTo(outer[1].x, outer[1].y);
           ctx.lineTo(outer[2].x, outer[2].y);
           ctx.closePath(); ctx.fill();
 
-          ctx.fillStyle = CAT_INNER_EAR;
+          ctx.fillStyle = pal.ear;
           ctx.beginPath();
           ctx.moveTo(inner[0].x, inner[0].y);
           ctx.lineTo(inner[1].x, inner[1].y);
@@ -803,8 +859,11 @@
       }
 
       function drawCat(ctx, pos, angle, z, groundZ, walkPhase, tailPhase, mood = "active", moodPhase = 0, carryingBall = false) {
+        const pal = CAT_PALETTES[catType] || CAT_PALETTES.tabby;
         const air = Math.max(0, z - groundZ);
-        const scale = 1.0 + Math.min(0.24, air * 0.0042);
+        const isResting = mood === "sit" || mood === "groom" || mood === "sleep";
+        const breath = mood === "sleep" ? 1.0 + 0.025 * Math.sin(moodPhase * 2.0) : 1.0;
+        const scale = (1.0 + Math.min(0.24, air * 0.0042)) * breath;
         const s = CAT_SIZE * scale;
 
         const cx = pos.x;
@@ -812,67 +871,217 @@
         const fx = Math.cos(angle), fy = Math.sin(angle);
         const rx = -fy, ry = fx;
 
+        const shScale = Math.max(0.58, 1.0 - air * 0.0045);
+        drawShadowEllipse(
+          ctx,
+          pos.x + 4,
+          pos.y + 8 - groundZ * 0.65,
+          CAT_SIZE * (isResting ? 0.64 : 0.68) * shScale,
+          CAT_SIZE * 0.46 * shScale,
+          Math.max(0.1, 0.28 - air * 0.0016)
+        );
+
+        // Multi-segment curved tail (cuddles warmly around the hip when asleep)
+        const tailPts = [];
         if (mood === "sleep") {
-          const breath = 1.0 + 0.035 * Math.sin(moodPhase * 2.2);
-          const sr = s * breath;
-          drawShadowEllipse(ctx, pos.x + 3, pos.y + 7 - groundZ * 0.65, CAT_SIZE * 0.56, CAT_SIZE * 0.48, 0.25);
-
-          ctx.fillStyle = CAT_COLOR;
-          ctx.beginPath(); ctx.arc(cx, cy, sr * 0.50, 0, Math.PI * 2); ctx.fill();
-
-          ctx.strokeStyle = CAT_STRIPE;
-          ctx.lineWidth = Math.max(2, sr * 0.06);
-          for (const deg of [-35, 0, 35]) {
-            const rad = angle + ((deg + 160) * Math.PI) / 180;
-            ctx.beginPath();
-            ctx.moveTo(cx + Math.cos(rad) * sr * 0.16, cy + Math.sin(rad) * sr * 0.16);
-            ctx.lineTo(cx + Math.cos(rad) * sr * 0.44, cy + Math.sin(rad) * sr * 0.44);
-            ctx.stroke();
+          const tailBaseX = cx - fx * (s * 0.40) + rx * (s * 0.18);
+          const tailBaseY = cy - fy * (s * 0.40) + ry * (s * 0.18);
+          for (let i = 0; i < 8; i++) {
+            const t = i / 7;
+            const aArc = t * Math.PI * 0.92;
+            const along = -Math.sin(aArc) * 0.24 + t * 0.48;
+            const sideOff = 0.28 * Math.sin(aArc * 0.85) + 0.14 * t + 0.03 * Math.sin(moodPhase * 1.4 - t * 2.0) * t;
+            tailPts.push([
+              tailBaseX + fx * (s * along) + rx * (s * sideOff),
+              tailBaseY + fy * (s * along) + ry * (s * sideOff),
+            ]);
           }
+        } else {
+          const tailBaseX = cx - fx * (s * (isResting ? 0.46 : 0.52));
+          const tailBaseY = cy - fy * (s * (isResting ? 0.46 : 0.52));
+          const tailAmp = isResting ? 0.16 : 0.24;
+          for (let i = 0; i < 6; i++) {
+            const t = i / 5;
+            const sway = Math.sin(tailPhase - t * 2.1) * (s * tailAmp * t);
+            tailPts.push([
+              tailBaseX - fx * (s * 0.72 * t) + rx * sway,
+              tailBaseY - fy * (s * 0.72 * t) + ry * sway,
+            ]);
+          }
+        }
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = pal.stripe;
+        ctx.lineWidth = Math.max(3, s * 0.12);
+        ctx.beginPath();
+        tailPts.forEach(([px, py], idx) => (idx === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+        ctx.stroke();
+        ctx.strokeStyle = pal.darkFace ? pal.patch : pal.body;
+        ctx.lineWidth = Math.max(2, s * 0.09);
+        ctx.stroke();
 
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
+        // Paws (keeps full cat silhouette in sit, groom, and cuddled sleep)
+        if (mood === "sleep") {
+          for (const [pf, pr] of [[0.42, 0.02], [0.34, 0.28], [-0.24, -0.26]]) {
+            const px = cx + fx * (s * pf) + rx * (s * pr);
+            const py = cy + fy * (s * pf) + ry * (s * pr);
+            ctx.fillStyle = pal.stripe;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = pal.paw;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
+          }
+        } else if (isResting) {
+          for (const [pf, pr] of [[0.42, -0.18], [0.42, 0.18], [-0.24, -0.30], [-0.24, 0.30]]) {
+            const px = cx + fx * (s * pf) + rx * (s * pr);
+            const py = cy + fy * (s * pf) + ry * (s * pr);
+            ctx.fillStyle = pal.stripe;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = pal.paw;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
+          }
+        } else {
+          const stride = air > 4.0 ? 0 : Math.sin(walkPhase) * (s * 0.14);
+          const paws = [
+            [0.32 + stride / s, -0.34],
+            [0.32 - stride / s, 0.34],
+            [-0.30 - stride / s, -0.34],
+            [-0.30 + stride / s, 0.34],
+          ];
+          for (const [pf, pr] of paws) {
+            const px = cx + fx * (s * pf) + rx * (s * pr);
+            const py = cy + fy * (s * pf) + ry * (s * pr);
+            ctx.fillStyle = pal.stripe;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.12), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = pal.paw;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.09), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+
+        // Full elongated cat body (gentle cozy C-curve cuddle when sleeping)
+        let bodyCircles;
+        if (mood === "sleep") {
+          bodyCircles = [[-0.22, 0.11, 0.41], [0.0, -0.04, 0.44], [0.21, 0.05, 0.40]];
+        } else if (isResting) {
+          bodyCircles = [[-0.22, 0.0, 0.41], [0.0, 0.0, 0.44], [0.22, 0.0, 0.40]];
+        } else {
+          bodyCircles = [[-0.24, 0.0, 0.40], [0.0, 0.0, 0.44], [0.24, 0.0, 0.40]];
+        }
+        for (const [bf, brSide, brad] of bodyCircles) {
+          ctx.fillStyle = pal.body;
           ctx.beginPath();
-          for (let i = 0; i < 10; i++) {
-            const t = i / 9;
-            const a = angle + Math.PI * (0.65 + t * 1.05);
-            const rTail = sr * (0.50 + 0.04 * Math.sin(moodPhase * 1.4 + t * 2.0));
-            const tx = cx + Math.cos(a) * rTail;
-            const ty = cy + Math.sin(a) * rTail;
-            if (i === 0) ctx.moveTo(tx, ty);
-            else ctx.lineTo(tx, ty);
-          }
-          ctx.strokeStyle = CAT_STRIPE;
-          ctx.lineWidth = Math.max(3, sr * 0.12);
-          ctx.stroke();
-          ctx.strokeStyle = CAT_COLOR;
-          ctx.lineWidth = Math.max(2, sr * 0.09);
-          ctx.stroke();
-
-          const hx = cx + fx * (sr * 0.28) + rx * (sr * 0.12);
-          const hy = cy + fy * (sr * 0.28) + ry * (sr * 0.12);
-          ctx.fillStyle = CAT_COLOR;
-          ctx.beginPath(); ctx.arc(hx, hy, sr * 0.34, 0, Math.PI * 2); ctx.fill();
-          drawEars(ctx, hx, hy, fx, fy, rx, ry, sr * 0.85);
-
-          ctx.strokeStyle = PUPIL_COLOR;
-          ctx.lineWidth = 2;
-          const ebx = hx + fx * (sr * 0.12);
-          const eby = hy + fy * (sr * 0.12);
-          for (const side of [-1, 1]) {
-            const ex = ebx + rx * (side * sr * 0.12);
-            const ey = eby + ry * (side * sr * 0.12);
-            ctx.beginPath();
-            ctx.moveTo(ex - rx * (sr * 0.05), ey - ry * (sr * 0.05));
-            ctx.lineTo(ex + rx * (sr * 0.05), ey + ry * (sr * 0.05));
-            ctx.stroke();
-          }
-
-          ctx.fillStyle = CAT_INNER_EAR;
-          ctx.beginPath();
-          ctx.arc(hx + fx * (sr * 0.27), hy + fy * (sr * 0.27), Math.max(2, sr * 0.04), 0, Math.PI * 2);
+          ctx.arc(cx + fx * (s * bf) + rx * (s * brSide), cy + fy * (s * bf) + ry * (s * brSide), s * brad, 0, Math.PI * 2);
           ctx.fill();
+        }
 
+        // Breed coat markings (patches for tuxedo/calico, stripes for tabby/gray/calico)
+        if (pal.patch && !pal.darkFace) {
+          ctx.fillStyle = pal.patch;
+          ctx.beginPath();
+          ctx.arc(cx - fx * (s * 0.10) + rx * (s * 0.14), cy - fy * (s * 0.10) + ry * (s * 0.14), s * 0.19, 0, Math.PI * 2);
+          ctx.fill();
+          if (catType === "calico") {
+            ctx.fillStyle = pal.stripe;
+            ctx.beginPath();
+            ctx.arc(cx + fx * (s * 0.12) - rx * (s * 0.15), cy + fy * (s * 0.12) - ry * (s * 0.15), s * 0.16, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        if (!pal.darkFace && catType !== "tuxedo") {
+          ctx.strokeStyle = pal.stripe;
+          ctx.lineWidth = Math.max(2, s * 0.06);
+          for (const sf of [-0.18, 0.0, 0.16]) {
+            const sideShift = mood === "sleep" ? (sf === 0.0 ? -0.03 : 0.04) : 0.0;
+            const bx = cx + fx * (s * sf) + rx * (s * sideShift);
+            const by = cy + fy * (s * sf) + ry * (s * sideShift);
+            ctx.beginPath();
+            ctx.moveTo(bx - rx * (s * 0.25), by - ry * (s * 0.25));
+            ctx.lineTo(bx + rx * (s * 0.25), by + ry * (s * 0.25));
+            ctx.stroke();
+          }
+        }
+
+        let hfx = fx, hfy = fy, hrx = rx, hry = ry, hx, hy;
+        if (mood === "sleep") {
+          const headAngle = angle + 0.55;
+          hfx = Math.cos(headAngle);
+          hfy = Math.sin(headAngle);
+          hrx = -hfy;
+          hry = hfx;
+          hx = cx + fx * (s * 0.44) + rx * (s * 0.16);
+          hy = cy + fy * (s * 0.44) + ry * (s * 0.16);
+        } else {
+          const headShift = isResting ? 0.50 : 0.56;
+          const groomBob = mood === "groom" ? Math.sin(moodPhase * 7.5) * (s * 0.04) : 0;
+          hx = cx + fx * (s * headShift + groomBob);
+          hy = cy + fy * (s * headShift + groomBob);
+        }
+
+        // Draw carried toy tucked into the mouth BEFORE the upper head/muzzle
+        if (carryingBall) {
+          drawBall(
+            ctx,
+            { x: pos.x + fx * (CAT_SIZE * 1.00), y: pos.y + fy * (CAT_SIZE * 1.00) },
+            z,
+            groundZ,
+            angle
+          );
+        }
+
+        ctx.fillStyle = pal.body;
+        ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
+        if (pal.darkFace) {
+          ctx.fillStyle = pal.patch;
+          ctx.beginPath(); ctx.arc(hx + hfx * (s * 0.16), hy + hfy * (s * 0.16), s * 0.24, 0, Math.PI * 2); ctx.fill();
+        }
+        drawEars(ctx, hx, hy, hfx, hfy, hrx, hry, s, pal);
+
+        const blinking = mood === "sit" && (moodPhase % 3.4) > 3.22;
+        const eyesClosed = blinking || mood === "groom" || mood === "sleep";
+        const ebx = hx + hfx * (s * 0.15);
+        const eby = hy + hfy * (s * 0.15);
+        for (const side of [-1, 1]) {
+          const ex = ebx + hrx * (side * s * 0.15);
+          const ey = eby + hry * (side * s * 0.15);
+          if (eyesClosed) {
+            ctx.strokeStyle = PUPIL_COLOR;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ex - hrx * (s * 0.06), ey - hry * (s * 0.06));
+            ctx.lineTo(ex + hrx * (s * 0.06), ey + hry * (s * 0.06));
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = pal.eye;
+            ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, s * 0.085), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = PUPIL_COLOR;
+            ctx.beginPath(); ctx.arc(ex + hfx * (s * 0.03), ey + hfy * (s * 0.03), Math.max(2, s * 0.045), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+
+        if (carryingBall) {
+          ctx.fillStyle = pal.darkFace ? pal.patch : pal.body;
+          for (const side of [-1, 1]) {
+            const chx = hx + hfx * (s * 0.30) + hrx * (side * s * 0.11);
+            const chy = hy + hfy * (s * 0.30) + hry * (side * s * 0.11);
+            ctx.beginPath(); ctx.arc(chx, chy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+
+        ctx.fillStyle = pal.ear;
+        ctx.beginPath();
+        ctx.arc(hx + hfx * (s * 0.34), hy + hfy * (s * 0.34), Math.max(2, s * 0.045), 0, Math.PI * 2);
+        ctx.fill();
+
+        if (mood === "groom") {
+          const rub = Math.sin(moodPhase * 7.5);
+          const lpx = hx + fx * (s * (0.24 + 0.08 * rub)) + rx * (s * (0.26 - 0.10 * rub));
+          const lpy = hy + fy * (s * (0.24 + 0.08 * rub)) + ry * (s * (0.26 - 0.10 * rub));
+          ctx.fillStyle = pal.stripe;
+          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = pal.paw;
+          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
+        }
+
+        if (mood === "sleep") {
           const zLabels = ["z", "z", "Z"];
           ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           for (let i = 0; i < zLabels.length; i++) {
@@ -885,154 +1094,6 @@
               ctx.fillText(zLabels[i], zx, zy);
             }
           }
-          return;
-        }
-
-        const isSeated = mood === "sit" || mood === "groom";
-        const shScale = Math.max(0.58, 1.0 - air * 0.0045);
-        drawShadowEllipse(
-          ctx,
-          pos.x + 4,
-          pos.y + 8 - groundZ * 0.65,
-          CAT_SIZE * (isSeated ? 0.56 : 0.68) * shScale,
-          CAT_SIZE * 0.46 * shScale,
-          Math.max(0.1, 0.28 - air * 0.0016)
-        );
-
-        const tailBaseX = cx - fx * (s * (isSeated ? 0.42 : 0.52));
-        const tailBaseY = cy - fy * (s * (isSeated ? 0.42 : 0.52));
-        const tailAmp = isSeated ? 0.16 : 0.24;
-        const tailPts = [];
-        for (let i = 0; i < 6; i++) {
-          const t = i / 5;
-          const sway = Math.sin(tailPhase - t * 2.1) * (s * tailAmp * t);
-          tailPts.push([
-            tailBaseX - fx * (s * 0.72 * t) + rx * sway,
-            tailBaseY - fy * (s * 0.72 * t) + ry * sway,
-          ]);
-        }
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.strokeStyle = CAT_STRIPE;
-        ctx.lineWidth = Math.max(3, s * 0.12);
-        ctx.beginPath();
-        tailPts.forEach(([px, py], idx) => (idx === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
-        ctx.stroke();
-        ctx.strokeStyle = CAT_COLOR;
-        ctx.lineWidth = Math.max(2, s * 0.09);
-        ctx.stroke();
-
-        let bodyCircles;
-        if (isSeated) {
-          for (const side of [-1, 1]) {
-            const px = cx + fx * (s * 0.38) + rx * (side * s * 0.17);
-            const py = cy + fy * (s * 0.38) + ry * (side * s * 0.17);
-            ctx.fillStyle = CAT_STRIPE;
-            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#fac88c";
-            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
-          }
-          bodyCircles = [[-0.14, 0.44], [0.10, 0.42]];
-        } else {
-          const stride = air > 4.0 ? 0 : Math.sin(walkPhase) * (s * 0.14);
-          const paws = [
-            [0.32 + stride / s, -0.34],
-            [0.32 - stride / s, 0.34],
-            [-0.30 - stride / s, -0.34],
-            [-0.30 + stride / s, 0.34],
-          ];
-          for (const [pf, pr] of paws) {
-            const px = cx + fx * (s * pf) + rx * (s * pr);
-            const py = cy + fy * (s * pf) + ry * (s * pr);
-            ctx.fillStyle = CAT_STRIPE;
-            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.12), 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#fac88c";
-            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.09), 0, Math.PI * 2); ctx.fill();
-          }
-          bodyCircles = [[-0.24, 0.40], [0.0, 0.44], [0.24, 0.40]];
-        }
-
-        for (const [bf, brad] of bodyCircles) {
-          ctx.fillStyle = CAT_COLOR;
-          ctx.beginPath();
-          ctx.arc(cx + fx * (s * bf), cy + fy * (s * bf), s * brad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.strokeStyle = CAT_STRIPE;
-        ctx.lineWidth = Math.max(2, s * 0.06);
-        const stripes = isSeated ? [-0.12, 0.06] : [-0.18, 0.0, 0.16];
-        for (const sf of stripes) {
-          const bx = cx + fx * (s * sf);
-          const by = cy + fy * (s * sf);
-          ctx.beginPath();
-          ctx.moveTo(bx - rx * (s * 0.26), by - ry * (s * 0.26));
-          ctx.lineTo(bx + rx * (s * 0.26), by + ry * (s * 0.26));
-          ctx.stroke();
-        }
-
-        const headShift = isSeated ? 0.42 : 0.56;
-        const groomBob = mood === "groom" ? Math.sin(moodPhase * 7.5) * (s * 0.04) : 0;
-        const hx = cx + fx * (s * headShift + groomBob);
-        const hy = cy + fy * (s * headShift + groomBob);
-
-        // Draw carried ball tucked into the mouth BEFORE the upper head/muzzle so nose & eyes stay visible
-        if (carryingBall) {
-          drawBall(
-            ctx,
-            { x: pos.x + fx * (CAT_SIZE * 1.00), y: pos.y + fy * (CAT_SIZE * 1.00) },
-            z,
-            groundZ
-          );
-        }
-
-        ctx.fillStyle = CAT_COLOR;
-        ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
-        drawEars(ctx, hx, hy, fx, fy, rx, ry, s);
-
-        const blinking = mood === "sit" && (moodPhase % 3.4) > 3.22;
-        const ebx = hx + fx * (s * 0.15);
-        const eby = hy + fy * (s * 0.15);
-        for (const side of [-1, 1]) {
-          const ex = ebx + rx * (side * s * 0.15);
-          const ey = eby + ry * (side * s * 0.15);
-          if (blinking || mood === "groom") {
-            ctx.strokeStyle = PUPIL_COLOR;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(ex - rx * (s * 0.06), ey - ry * (s * 0.06));
-            ctx.lineTo(ex + rx * (s * 0.06), ey + ry * (s * 0.06));
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = EYE_COLOR;
-            ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, s * 0.085), 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = PUPIL_COLOR;
-            ctx.beginPath(); ctx.arc(ex + fx * (s * 0.03), ey + fy * (s * 0.03), Math.max(2, s * 0.045), 0, Math.PI * 2); ctx.fill();
-          }
-        }
-
-        if (carryingBall) {
-          ctx.fillStyle = CAT_COLOR;
-          for (const side of [-1, 1]) {
-            const chx = hx + fx * (s * 0.30) + rx * (side * s * 0.11);
-            const chy = hy + fy * (s * 0.30) + ry * (side * s * 0.11);
-            ctx.beginPath(); ctx.arc(chx, chy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
-          }
-        }
-
-        ctx.fillStyle = CAT_INNER_EAR;
-        ctx.beginPath();
-        ctx.arc(hx + fx * (s * 0.34), hy + fy * (s * 0.34), Math.max(2, s * 0.045), 0, Math.PI * 2);
-        ctx.fill();
-
-        if (mood === "groom") {
-          const rub = Math.sin(moodPhase * 7.5);
-          const lpx = hx + fx * (s * (0.24 + 0.08 * rub)) + rx * (s * (0.26 - 0.10 * rub));
-          const lpy = hy + fy * (s * (0.24 + 0.08 * rub)) + ry * (s * (0.26 - 0.10 * rub));
-          ctx.fillStyle = CAT_STRIPE;
-          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = "#fac88c";
-          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
         }
       }
 
@@ -1040,9 +1101,13 @@
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
       const fsBtn = document.getElementById("fsBtn");
+      const catSelect = document.getElementById("catSelect");
+      const toySelect = document.getElementById("toySelect");
       const roomBg = buildLivingRoomCanvas();
 
       // State
+      let catType = "tabby";
+      let toyType = "ball";
       let pillows;
       let catPos, catVel, catAngle, catZ, catVz, walkPhase, tailPhase;
       let cursorPos, prevCursorPos, handSpeed, pointerInside, pointerOnHud;
@@ -1225,10 +1290,29 @@
         } else if (e.code === "KeyF") {
           e.preventDefault();
           toggleFullscreen();
+        } else if (e.code === "KeyC") {
+          const idx = (CAT_KEYS.indexOf(catType) + 1) % CAT_KEYS.length;
+          catType = CAT_KEYS[idx];
+          if (catSelect) catSelect.value = catType;
+        } else if (e.code === "KeyT") {
+          const idx = (TOY_KEYS.indexOf(toyType) + 1) % TOY_KEYS.length;
+          toyType = TOY_KEYS[idx];
+          if (toySelect) toySelect.value = toyType;
         } else if (e.code === "KeyR") {
           resetGame();
         }
       });
+
+      if (catSelect) {
+        catSelect.addEventListener("change", () => {
+          if (CAT_PALETTES[catSelect.value]) catType = catSelect.value;
+        });
+      }
+      if (toySelect) {
+        toySelect.addEventListener("change", () => {
+          if (TOY_LABELS[toySelect.value]) toyType = toySelect.value;
+        });
+      }
 
       document.getElementById("tossBtn").addEventListener("click", tossBall);
       fsBtn.addEventListener("click", toggleFullscreen);
@@ -1544,7 +1628,8 @@
         }
 
         if (ballState === "loose") {
-          drawBall(ctx, ballPos, ballZ, surfaceHeightAt(ballPos, pillows));
+          const toyAngle = vLen(ballVel.x, ballVel.y) > 8 ? Math.atan2(ballVel.y, ballVel.x) : 0;
+          drawBall(ctx, ballPos, ballZ, surfaceHeightAt(ballPos, pillows), toyAngle);
         }
 
         const catGroundZ = surfaceHeightAt(catPos, pillows);
@@ -1558,25 +1643,27 @@
         ctx.font = '500 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillStyle = "#eee8de";
         ctx.fillText(
-          "Left-click / Space: toss ball  |  F: fullscreen  |  Hover top bar or stay still: let cat rest",
+          "Click / Space: toss toy  |  C: cat breed  |  T: toy  |  F: fullscreen  |  Hover top bar: rest",
           16,
           23
         );
 
-        let stateLabel = "Holding ball";
+        let stateLabel = "Holding toy";
         if (catMood === "stroll") stateLabel = "Cat is strolling to a cozy spot...";
         else if (catMood === "sit") stateLabel = "Cat is sitting & looking around";
         else if (catMood === "groom") stateLabel = "Cat is grooming itself";
         else if (catMood === "sleep") stateLabel = "Cat is sleeping... zZz";
-        else if (ballState === "loose") stateLabel = "Ball loose (pick it up!)";
-        else if (ballState === "cat") stateLabel = "Cat stole the ball! Chase it to take it back!";
+        else if (ballState === "loose") stateLabel = "Toy loose (pick it up!)";
+        else if (ballState === "cat") stateLabel = "Cat stole the toy! Chase it to take it back!";
 
         const onSurface =
           catZ > catGroundZ + 4.0 ? "Airborne!" : catGroundZ > 0 ? "On furniture" : "Floor";
+        const catName = (CAT_PALETTES[catType] || CAT_PALETTES.tabby).label;
+        const toyName = TOY_LABELS[toyType] || TOY_LABELS.ball;
 
         ctx.fillStyle = "#d4c6b2";
         ctx.fillText(
-          `Speed: ${Math.round(vLen(catVel.x, catVel.y))} px/s   Surface: ${onSurface}   [${stateLabel}]`,
+          `${catName}  ·  ${toyName}  |  Speed: ${Math.round(vLen(catVel.x, catVel.y))} px/s   Surface: ${onSurface}   [${stateLabel}]`,
           16,
           46
         );

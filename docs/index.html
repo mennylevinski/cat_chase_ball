@@ -16,8 +16,25 @@
     <canvas id="game" width="1280" height="720" aria-label="Cat Chase Ball Living Room Game"></canvas>
   </div>
   <div class="footer">
-    <span>Move mouse / finger · Click or Space: toss · F: fullscreen · Hover top bar or stay still: let cat rest</span>
-    <button id="tossBtn" type="button">Toss Ball</button>
+    <label class="ctrl-label">
+      Cat
+      <select id="catSelect" aria-label="Cat breed">
+        <option value="tabby">Orange Tabby</option>
+        <option value="tuxedo">Tuxedo</option>
+        <option value="gray">Gray</option>
+        <option value="calico">Calico</option>
+        <option value="siamese">Siamese</option>
+      </select>
+    </label>
+    <label class="ctrl-label">
+      Toy
+      <select id="toySelect" aria-label="Toy type">
+        <option value="ball">Blue Ball</option>
+        <option value="yarn">Yarn Ball</option>
+        <option value="mouse">Toy Mouse</option>
+      </select>
+    </label>
+    <button id="tossBtn" type="button">Toss Toy</button>
     <button id="fsBtn" type="button">Fullscreen</button>
     <button id="resetBtn" type="button">Reset</button>
   </div>

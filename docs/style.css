@@ -72,7 +72,8 @@
       justify-content: center;
     }
 
-    .footer button {
+    .footer button,
+    .footer select {
       background: #38312c;
       color: #ede6dc;
       border: 1px solid #594f47;
@@ -83,6 +84,15 @@
       transition: background 0.15s ease;
     }
 
-    .footer button:hover {
+    .footer button:hover,
+    .footer select:hover {
       background: #4b423b;
+    }
+
+    .ctrl-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #d4c6b2;
     }

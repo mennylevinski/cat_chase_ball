@@ -672,7 +672,69 @@ def _draw_capsule(surface, p1, p2, radius, fill_color, outline_color):
     pygame.draw.circle(surface, fill_color, (x2, y2), radius)
 
 
-def draw_ball(surface, pos, z=0.0, ground_z=0.0):
+CAT_PALETTES = {
+    "tabby": {
+        "label": "Orange Tabby",
+        "body": (238, 148, 54),
+        "stripe": (196, 106, 28),
+        "ear": (245, 180, 175),
+        "paw": (250, 200, 140),
+        "patch": None,
+        "eye": (255, 255, 255),
+        "dark_face": False,
+    },
+    "tuxedo": {
+        "label": "Tuxedo",
+        "body": (44, 47, 54),
+        "stripe": (27, 29, 34),
+        "ear": (230, 164, 164),
+        "paw": (242, 242, 242),
+        "patch": (242, 242, 242),
+        "eye": (216, 245, 162),
+        "dark_face": False,
+    },
+    "gray": {
+        "label": "Gray",
+        "body": (140, 150, 164),
+        "stripe": (99, 108, 120),
+        "ear": (232, 180, 184),
+        "paw": (185, 193, 204),
+        "patch": None,
+        "eye": (255, 224, 130),
+        "dark_face": False,
+    },
+    "calico": {
+        "label": "Calico",
+        "body": (246, 239, 228),
+        "stripe": (217, 122, 50),
+        "ear": (242, 178, 172),
+        "paw": (255, 250, 242),
+        "patch": (58, 53, 50),
+        "eye": (197, 232, 166),
+        "dark_face": False,
+    },
+    "siamese": {
+        "label": "Siamese",
+        "body": (239, 226, 204),
+        "stripe": (92, 70, 56),
+        "ear": (106, 82, 68),
+        "paw": (92, 70, 56),
+        "patch": (106, 82, 68),
+        "eye": (126, 200, 255),
+        "dark_face": True,
+    },
+}
+CAT_KEYS = list(CAT_PALETTES.keys())
+
+TOY_LABELS = {
+    "ball": "Blue Ball",
+    "yarn": "Yarn Ball",
+    "mouse": "Toy Mouse",
+}
+TOY_KEYS = list(TOY_LABELS.keys())
+
+
+def draw_ball(surface, pos, z=0.0, ground_z=0.0, toy_type="ball", angle=0.0):
     air = max(0.0, z - ground_z)
     sh_scale = max(0.55, 1.0 - air * 0.005)
     _draw_ellipse_shadow(
@@ -685,13 +747,46 @@ def draw_ball(surface, pos, z=0.0, ground_z=0.0):
     bx = int(pos.x)
     by = int(pos.y - z * 0.8)
     rad = int(MOUSE_RADIUS * (1.0 + min(0.28, air * 0.003)))
-    pygame.draw.circle(surface, (22, 92, 175), (bx, by), rad + 1)
-    pygame.draw.circle(surface, MOUSE_COLOR, (bx, by), rad)
-    pygame.draw.circle(surface, BALL_HIGHLIGHT, (bx - max(2, rad // 3), by - max(2, rad // 3)), max(2, rad // 4))
+
+    if toy_type == "yarn":
+        pygame.draw.circle(surface, (166, 43, 79), (bx, by), rad + 1)
+        pygame.draw.circle(surface, (224, 72, 114), (bx, by), rad)
+        arc_r = pygame.Rect(bx - rad + 3, by - rad + 3, (rad - 3) * 2, (rad - 3) * 2)
+        pygame.draw.arc(surface, (255, 155, 182), arc_r, -0.7, 1.5, 2)
+        pygame.draw.arc(surface, (255, 155, 182), arc_r.inflate(-4, -4), 1.8, 4.2, 2)
+        tail_pts = [(bx - rad, by + 2), (bx - rad - 7, by + 8), (bx - rad - 14, by + 2)]
+        pygame.draw.lines(surface, (224, 72, 114), False, tail_pts, 2)
+    elif toy_type == "mouse":
+        fwd = Vector2(math.cos(angle), math.sin(angle))
+        right = Vector2(-fwd.y, fwd.x)
+        center = Vector2(bx, by)
+        tail_pts = [
+            center - fwd * 11,
+            center - fwd * 18 - right * 4,
+            center - fwd * 23 + right * 2,
+        ]
+        pygame.draw.lines(surface, (230, 164, 164), False, [(int(p.x), int(p.y)) for p in tail_pts], 2)
+        for off, rr in [(-4, 8), (0, 9), (5, 7)]:
+            p = center + fwd * off
+            pygame.draw.circle(surface, (122, 128, 136), (int(p.x), int(p.y)), rr + 1)
+        for off, rr in [(-4, 7), (0, 8), (5, 6)]:
+            p = center + fwd * off
+            pygame.draw.circle(surface, (154, 160, 168), (int(p.x), int(p.y)), rr)
+        for side in (-1, 1):
+            ear = center + fwd * 4 + right * (side * 7)
+            pygame.draw.circle(surface, (232, 168, 168), (int(ear.x), int(ear.y)), 4)
+            eye = center + fwd * 8 + right * (side * 3)
+            pygame.draw.circle(surface, (30, 30, 30), (int(eye.x), int(eye.y)), 2)
+        nose = center + fwd * 12
+        pygame.draw.circle(surface, (242, 148, 148), (int(nose.x), int(nose.y)), 2)
+    else:
+        pygame.draw.circle(surface, (22, 92, 175), (bx, by), rad + 1)
+        pygame.draw.circle(surface, MOUSE_COLOR, (bx, by), rad)
+        pygame.draw.circle(surface, BALL_HIGHLIGHT, (bx - max(2, rad // 3), by - max(2, rad // 3)), max(2, rad // 4))
 
 
-def draw_hand(surface, pos, holding=False):
-    """Draw a custom hand cursor: open/loose when empty, closed/gripping when holding the ball."""
+def draw_hand(surface, pos, holding=False, toy_type="ball"):
+    """Draw a custom hand cursor: open/loose when empty, closed/gripping when holding the toy."""
     hx, hy = int(pos.x), int(pos.y)
 
     if not holding:
@@ -722,7 +817,7 @@ def draw_hand(surface, pos, holding=False):
         pygame.draw.ellipse(surface, HAND_OUTLINE, palm_rect.inflate(2, 2))
         pygame.draw.ellipse(surface, HAND_COLOR, palm_rect)
 
-        draw_ball(surface, pos, z=0.0, ground_z=0.0)
+        draw_ball(surface, pos, z=0.0, ground_z=0.0, toy_type=toy_type)
 
         for fx, fy in [(hx - 8, hy - 9), (hx - 3, hy - 11), (hx + 3, hy - 11), (hx + 8, hy - 8)]:
             pygame.draw.circle(surface, HAND_OUTLINE, (fx, fy), 4)
@@ -731,7 +826,8 @@ def draw_hand(surface, pos, holding=False):
         _draw_capsule(surface, (hx - 11, hy + 5), (hx - 3, hy + 2), 3, HAND_COLOR, HAND_OUTLINE)
 
 
-def _draw_ears(surface, head_pos, forward, right, s):
+def _draw_ears(surface, head_pos, forward, right, s, pal):
+    ear_outer = pal["patch"] if pal["dark_face"] else pal["body"]
     for side in (-1, 1):
         outer_ear = [
             head_pos - forward * (s * 0.06) + right * (side * s * 0.18),
@@ -740,8 +836,8 @@ def _draw_ears(surface, head_pos, forward, right, s):
         ]
         centroid = (outer_ear[0] + outer_ear[1] + outer_ear[2]) / 3.0
         inner_ear = [centroid + (p - centroid) * 0.55 for p in outer_ear]
-        pygame.draw.polygon(surface, CAT_COLOR, [(p.x, p.y) for p in outer_ear])
-        pygame.draw.polygon(surface, CAT_INNER_EAR, [(p.x, p.y) for p in inner_ear])
+        pygame.draw.polygon(surface, ear_outer, [(p.x, p.y) for p in outer_ear])
+        pygame.draw.polygon(surface, pal["ear"], [(p.x, p.y) for p in inner_ear])
 
 
 def draw_cat(
@@ -757,93 +853,65 @@ def draw_cat(
     mood_phase=0.0,
     zzz_font=None,
     carrying_ball=False,
+    cat_type="tabby",
+    toy_type="ball",
 ):
+    pal = CAT_PALETTES.get(cat_type, CAT_PALETTES["tabby"])
     air = max(0.0, z - ground_z)
-    scale = 1.0 + min(0.24, air * 0.0042)
+    is_resting = mood in ("sit", "groom", "sleep")
+    breath = (1.0 + 0.025 * math.sin(mood_phase * 2.0)) if mood == "sleep" else 1.0
+    scale = (1.0 + min(0.24, air * 0.0042)) * breath
     s = size * scale
 
     center = Vector2(pos.x, pos.y - z * 0.8)
     forward = Vector2(math.cos(angle), math.sin(angle))
     right = Vector2(-forward.y, forward.x)
 
-    if mood == "sleep":
-        breath = 1.0 + 0.035 * math.sin(mood_phase * 2.2)
-        sr = s * breath
-        _draw_ellipse_shadow(
-            surface,
-            Vector2(pos.x + 3, pos.y + 7 - ground_z * 0.65),
-            size * 0.56,
-            size * 0.48,
-            alpha=64,
-        )
-        pygame.draw.circle(surface, CAT_COLOR, (int(center.x), int(center.y)), int(sr * 0.50))
-        for a_deg in (-35, 0, 35):
-            rad = angle + math.radians(a_deg + 160)
-            p1 = center + Vector2(math.cos(rad), math.sin(rad)) * (sr * 0.16)
-            p2 = center + Vector2(math.cos(rad), math.sin(rad)) * (sr * 0.44)
-            pygame.draw.line(surface, CAT_STRIPE, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), max(2, int(sr * 0.06)))
-
-        wrap_pts = []
-        for i in range(10):
-            t = i / 9.0
-            a = angle + math.pi * (0.65 + t * 1.05)
-            rad_tail = sr * (0.50 + 0.04 * math.sin(mood_phase * 1.4 + t * 2.0))
-            wrap_pts.append((int(center.x + math.cos(a) * rad_tail), int(center.y + math.sin(a) * rad_tail)))
-        pygame.draw.lines(surface, CAT_STRIPE, False, wrap_pts, max(3, int(sr * 0.12)))
-        pygame.draw.lines(surface, CAT_COLOR, False, wrap_pts, max(2, int(sr * 0.09)))
-
-        head_pos = center + forward * (sr * 0.28) + right * (sr * 0.12)
-        pygame.draw.circle(surface, CAT_COLOR, (int(head_pos.x), int(head_pos.y)), int(sr * 0.34))
-        _draw_ears(surface, head_pos, forward, right, sr * 0.85)
-
-        eye_base = head_pos + forward * (sr * 0.12)
-        for side in (-1, 1):
-            ep = eye_base + right * (side * sr * 0.12)
-            p1 = ep - right * (sr * 0.05)
-            p2 = ep + right * (sr * 0.05)
-            pygame.draw.line(surface, PUPIL_COLOR, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), 2)
-
-        nose = head_pos + forward * (sr * 0.27)
-        pygame.draw.circle(surface, CAT_INNER_EAR, (int(nose.x), int(nose.y)), max(2, int(sr * 0.04)))
-
-        if zzz_font is not None:
-            for idx, label in enumerate(("z", "z", "Z")):
-                cyc = (mood_phase * 0.45 + idx * 0.33) % 1.0
-                zx = head_pos.x + 14 + idx * 8 + math.sin(cyc * 5.0) * 4
-                zy = head_pos.y - 16 - cyc * 34
-                alpha = int(220 * math.sin(cyc * math.pi))
-                if alpha > 20:
-                    z_surf = zzz_font.render(label, True, (245, 240, 232))
-                    z_surf.set_alpha(alpha)
-                    surface.blit(z_surf, (int(zx), int(zy)))
-        return
-
     sh_scale = max(0.58, 1.0 - air * 0.0045)
     _draw_ellipse_shadow(
         surface,
         Vector2(pos.x + 4, pos.y + 8 - ground_z * 0.65),
-        size * (0.56 if mood in ("sit", "groom") else 0.68) * sh_scale,
+        size * (0.64 if is_resting else 0.68) * sh_scale,
         size * 0.46 * sh_scale,
         alpha=max(26, int(72 - air * 0.4)),
     )
 
+    # Multi-segment curved tail (cuddles warmly around the hip when asleep)
     tail_pts = []
-    tail_base = center - forward * (s * (0.42 if mood in ("sit", "groom") else 0.52))
-    tail_amp = 0.16 if mood in ("sit", "groom") else 0.24
-    for i in range(6):
-        t = i / 5.0
-        sway = math.sin(tail_phase - t * 2.1) * (s * tail_amp * t)
-        pt = tail_base - forward * (s * 0.72 * t) + right * sway
-        tail_pts.append((int(pt.x), int(pt.y)))
-    pygame.draw.lines(surface, CAT_STRIPE, False, tail_pts, max(3, int(s * 0.12)))
-    pygame.draw.lines(surface, CAT_COLOR, False, tail_pts, max(2, int(s * 0.09)))
+    if mood == "sleep":
+        tail_base = center - forward * (s * 0.40) + right * (s * 0.18)
+        for i in range(8):
+            t = i / 7.0
+            # Soft hug curve wrapping around the cuddled flank
+            a_arc = t * math.pi * 0.92
+            along = -math.sin(a_arc) * 0.24 + t * 0.48
+            side_off = 0.28 * math.sin(a_arc * 0.85) + 0.14 * t + 0.03 * math.sin(mood_phase * 1.4 - t * 2.0) * t
+            pt = tail_base + forward * (s * along) + right * (s * side_off)
+            tail_pts.append((int(pt.x), int(pt.y)))
+    else:
+        tail_base = center - forward * (s * (0.46 if is_resting else 0.52))
+        tail_amp = 0.16 if is_resting else 0.24
+        for i in range(6):
+            t = i / 5.0
+            sway = math.sin(tail_phase - t * 2.1) * (s * tail_amp * t)
+            pt = tail_base - forward * (s * 0.72 * t) + right * sway
+            tail_pts.append((int(pt.x), int(pt.y)))
+    tail_fill = pal["patch"] if pal["dark_face"] else pal["body"]
+    pygame.draw.lines(surface, pal["stripe"], False, tail_pts, max(3, int(s * 0.12)))
+    pygame.draw.lines(surface, tail_fill, False, tail_pts, max(2, int(s * 0.09)))
 
-    if mood in ("sit", "groom"):
-        for side in (-1, 1):
-            paw_pos = center + forward * (s * 0.38) + right * (side * s * 0.17)
-            pygame.draw.circle(surface, CAT_STRIPE, (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.11)))
-            pygame.draw.circle(surface, (250, 200, 140), (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.085)))
-        body_circles = [(-0.14, 0.44), (0.10, 0.42)]
+    # Paws (preserves full cat shape in sit, groom, and cuddled sleep)
+    if mood == "sleep":
+        rest_paws = [(0.42, 0.02), (0.34, 0.28), (-0.24, -0.26)]
+        for pf, pr in rest_paws:
+            paw_pos = center + forward * (s * pf) + right * (s * pr)
+            pygame.draw.circle(surface, pal["stripe"], (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.11)))
+            pygame.draw.circle(surface, pal["paw"], (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.085)))
+    elif is_resting:
+        for pf, pr in [(0.42, -0.18), (0.42, 0.18), (-0.24, -0.30), (-0.24, 0.30)]:
+            paw_pos = center + forward * (s * pf) + right * (s * pr)
+            pygame.draw.circle(surface, pal["stripe"], (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.11)))
+            pygame.draw.circle(surface, pal["paw"], (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.085)))
     else:
         stride = 0.0 if air > 4.0 else math.sin(walk_phase) * (s * 0.14)
         paw_offsets = [
@@ -854,60 +922,98 @@ def draw_cat(
         ]
         for pf, pr in paw_offsets:
             paw_pos = center + forward * (s * pf) + right * (s * pr)
-            pygame.draw.circle(surface, CAT_STRIPE, (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.12)))
-            pygame.draw.circle(surface, (250, 200, 140), (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.09)))
-        body_circles = [(-0.24, 0.40), (0.0, 0.44), (0.24, 0.40)]
+            pygame.draw.circle(surface, pal["stripe"], (int(paw_pos.x), int(paw_pos.y)), max(3, int(s * 0.12)))
+            pygame.draw.circle(surface, pal["paw"], (int(paw_pos.x), int(paw_pos.y)), max(2, int(s * 0.09)))
 
-    for bf, brad in body_circles:
-        bp = center + forward * (s * bf)
-        pygame.draw.circle(surface, CAT_COLOR, (int(bp.x), int(bp.y)), int(s * brad))
+    # Full elongated cat body (gentle cozy C-curve cuddle when sleeping)
+    if mood == "sleep":
+        body_circles = [(-0.22, 0.11, 0.41), (0.0, -0.04, 0.44), (0.21, 0.05, 0.40)]
+    elif is_resting:
+        body_circles = [(-0.22, 0.0, 0.41), (0.0, 0.0, 0.44), (0.22, 0.0, 0.40)]
+    else:
+        body_circles = [(-0.24, 0.0, 0.40), (0.0, 0.0, 0.44), (0.24, 0.0, 0.40)]
+    for bf, br_side, brad in body_circles:
+        bp = center + forward * (s * bf) + right * (s * br_side)
+        pygame.draw.circle(surface, pal["body"], (int(bp.x), int(bp.y)), int(s * brad))
 
-    stripes = (-0.12, 0.06) if mood in ("sit", "groom") else (-0.18, 0.0, 0.16)
-    for sf in stripes:
-        sp1 = center + forward * (s * sf) - right * (s * 0.26)
-        sp2 = center + forward * (s * sf) + right * (s * 0.26)
-        pygame.draw.line(surface, CAT_STRIPE, (int(sp1.x), int(sp1.y)), (int(sp2.x), int(sp2.y)), max(2, int(s * 0.06)))
+    # Coat patches / tabby stripes
+    if pal["patch"] is not None and not pal["dark_face"]:
+        p_pos = center - forward * (s * 0.10) + right * (s * 0.14)
+        pygame.draw.circle(surface, pal["patch"], (int(p_pos.x), int(p_pos.y)), int(s * 0.19))
+        if cat_type == "calico":
+            p2 = center + forward * (s * 0.12) - right * (s * 0.15)
+            pygame.draw.circle(surface, pal["stripe"], (int(p2.x), int(p2.y)), int(s * 0.16))
 
-    head_shift = 0.42 if mood in ("sit", "groom") else 0.56
-    groom_bob = math.sin(mood_phase * 7.5) * (s * 0.04) if mood == "groom" else 0.0
-    head_pos = center + forward * (s * head_shift + groom_bob)
+    if not pal["dark_face"] and cat_type != "tuxedo":
+        for sf in (-0.18, 0.0, 0.16):
+            side_shift = (-0.03 if sf == 0.0 else 0.04) if mood == "sleep" else 0.0
+            sp1 = center + forward * (s * sf) + right * (s * (side_shift - 0.25))
+            sp2 = center + forward * (s * sf) + right * (s * (side_shift + 0.25))
+            pygame.draw.line(surface, pal["stripe"], (int(sp1.x), int(sp1.y)), (int(sp2.x), int(sp2.y)), max(2, int(s * 0.06)))
 
-    # Draw carried ball tucked into the mouth BEFORE the upper head/muzzle so nose & eyes stay visible
+    if mood == "sleep":
+        head_angle = angle + 0.55
+        h_fwd = Vector2(math.cos(head_angle), math.sin(head_angle))
+        h_right = Vector2(-h_fwd.y, h_fwd.x)
+        head_pos = center + forward * (s * 0.44) + right * (s * 0.16)
+    else:
+        h_fwd = forward
+        h_right = right
+        head_shift = 0.50 if is_resting else 0.56
+        groom_bob = math.sin(mood_phase * 7.5) * (s * 0.04) if mood == "groom" else 0.0
+        head_pos = center + forward * (s * head_shift + groom_bob)
+
+    # Draw carried toy tucked into the mouth BEFORE the upper head/muzzle
     if carrying_ball:
         mouth_world = pos + forward * (size * 1.00)
-        draw_ball(surface, mouth_world, z=z, ground_z=ground_z)
+        draw_ball(surface, mouth_world, z=z, ground_z=ground_z, toy_type=toy_type, angle=angle)
 
-    pygame.draw.circle(surface, CAT_COLOR, (int(head_pos.x), int(head_pos.y)), int(s * 0.40))
-    _draw_ears(surface, head_pos, forward, right, s)
+    pygame.draw.circle(surface, pal["body"], (int(head_pos.x), int(head_pos.y)), int(s * 0.40))
+    if pal["dark_face"]:
+        mask_pos = head_pos + h_fwd * (s * 0.16)
+        pygame.draw.circle(surface, pal["patch"], (int(mask_pos.x), int(mask_pos.y)), int(s * 0.24))
+    _draw_ears(surface, head_pos, h_fwd, h_right, s, pal)
 
     blinking = mood == "sit" and (mood_phase % 3.4) > 3.22
-    eye_base = head_pos + forward * (s * 0.15)
+    eyes_closed = blinking or mood in ("groom", "sleep")
+    eye_base = head_pos + h_fwd * (s * 0.15)
     sep = s * 0.15
     for side in (-1, 1):
-        ep = eye_base + right * (side * sep)
-        if blinking or mood == "groom":
-            p1 = ep - right * (s * 0.06)
-            p2 = ep + right * (s * 0.06)
+        ep = eye_base + h_right * (side * sep)
+        if eyes_closed:
+            p1 = ep - h_right * (s * 0.06)
+            p2 = ep + h_right * (s * 0.06)
             pygame.draw.line(surface, PUPIL_COLOR, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), 2)
         else:
-            pygame.draw.circle(surface, EYE_COLOR, (int(ep.x), int(ep.y)), max(3, int(s * 0.085)))
-            look = forward * (s * 0.03)
+            pygame.draw.circle(surface, pal["eye"], (int(ep.x), int(ep.y)), max(3, int(s * 0.085)))
+            look = h_fwd * (s * 0.03)
             pygame.draw.circle(surface, PUPIL_COLOR, (int(ep.x + look.x), int(ep.y + look.y)), max(2, int(s * 0.045)))
 
     if carrying_ball:
-        # Small rounded muzzle cheeks hugging the back of the ball in the mouth
+        cheek_col = pal["patch"] if pal["dark_face"] else pal["body"]
         for side in (-1, 1):
-            cheek = head_pos + forward * (s * 0.30) + right * (side * s * 0.11)
-            pygame.draw.circle(surface, CAT_COLOR, (int(cheek.x), int(cheek.y)), max(3, int(s * 0.11)))
+            cheek = head_pos + h_fwd * (s * 0.30) + h_right * (side * s * 0.11)
+            pygame.draw.circle(surface, cheek_col, (int(cheek.x), int(cheek.y)), max(3, int(s * 0.11)))
 
-    nose = head_pos + forward * (s * 0.34)
-    pygame.draw.circle(surface, CAT_INNER_EAR, (int(nose.x), int(nose.y)), max(2, int(s * 0.045)))
+    nose = head_pos + h_fwd * (s * 0.34)
+    pygame.draw.circle(surface, pal["ear"], (int(nose.x), int(nose.y)), max(2, int(s * 0.045)))
 
     if mood == "groom":
         rub = math.sin(mood_phase * 7.5)
         lick_paw = head_pos + forward * (s * (0.24 + 0.08 * rub)) + right * (s * (0.26 - 0.10 * rub))
-        pygame.draw.circle(surface, CAT_STRIPE, (int(lick_paw.x), int(lick_paw.y)), max(3, int(s * 0.11)))
-        pygame.draw.circle(surface, (250, 200, 140), (int(lick_paw.x), int(lick_paw.y)), max(2, int(s * 0.085)))
+        pygame.draw.circle(surface, pal["stripe"], (int(lick_paw.x), int(lick_paw.y)), max(3, int(s * 0.11)))
+        pygame.draw.circle(surface, pal["paw"], (int(lick_paw.x), int(lick_paw.y)), max(2, int(s * 0.085)))
+
+    if mood == "sleep" and zzz_font is not None:
+        for idx, label in enumerate(("z", "z", "Z")):
+            cyc = (mood_phase * 0.45 + idx * 0.33) % 1.0
+            zx = head_pos.x + 14 + idx * 8 + math.sin(cyc * 5.0) * 4
+            zy = head_pos.y - 16 - cyc * 34
+            alpha = int(220 * math.sin(cyc * math.pi))
+            if alpha > 20:
+                z_surf = zzz_font.render(label, True, (245, 240, 232))
+                z_surf.set_alpha(alpha)
+                surface.blit(z_surf, (int(zx), int(zy)))
 
 
 def main():
@@ -925,6 +1031,11 @@ def main():
     pillows = create_floor_pillows()
     room_bg = build_living_room_surface(furniture)
     solid_items = [f for f in furniture if f.kind == "solid"]
+
+    cat_idx = 0
+    toy_idx = 0
+    cat_type = CAT_KEYS[cat_idx]
+    toy_type = TOY_KEYS[toy_idx]
 
     cat_pos = Vector2(360, 480)
     cat_vel = Vector2(0, 0)
@@ -1021,6 +1132,12 @@ def main():
                         fullscreen = not fullscreen
                         flags = base_flags | pygame.FULLSCREEN if fullscreen else base_flags
                         screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+                    elif event.key == pygame.K_c:
+                        cat_idx = (cat_idx + 1) % len(CAT_KEYS)
+                        cat_type = CAT_KEYS[cat_idx]
+                    elif event.key == pygame.K_t:
+                        toy_idx = (toy_idx + 1) % len(TOY_KEYS)
+                        toy_type = TOY_KEYS[toy_idx]
                 elif event.type == pygame.MOUSEMOTION:
                     raw_mouse = Vector2(event.pos)
                     new_pos = clamp_point(raw_mouse, MOUSE_RADIUS, MOUSE_RADIUS)
@@ -1309,7 +1426,15 @@ def main():
                 draw_furniture_item(screen, item)
 
             if ball_state == "loose":
-                draw_ball(screen, ball_pos, z=ball_z, ground_z=surface_height_at(ball_pos, furniture, pillows))
+                toy_angle = math.atan2(ball_vel.y, ball_vel.x) if ball_vel.length() > 8.0 else 0.0
+                draw_ball(
+                    screen,
+                    ball_pos,
+                    z=ball_z,
+                    ground_z=surface_height_at(ball_pos, furniture, pillows),
+                    toy_type=toy_type,
+                    angle=toy_angle,
+                )
 
             draw_cat(
                 screen,
@@ -1324,14 +1449,16 @@ def main():
                 mood_phase=mood_phase,
                 zzz_font=zzz_font,
                 carrying_ball=(ball_state == "cat"),
+                cat_type=cat_type,
+                toy_type=toy_type,
             )
 
             if pointer_in_room:
-                draw_hand(screen, cursor_pos, holding=(ball_state == "held"))
+                draw_hand(screen, cursor_pos, holding=(ball_state == "held"), toy_type=toy_type)
 
             # HUD
             txt = font.render(
-                "Left-click: toss ball | F / F11: fullscreen | Hover top bar or stay still: let cat rest | Esc: quit",
+                "Click: toss toy | C: cat breed | T: toy | F/F11: fullscreen | Hover top bar: rest | Esc: quit",
                 True,
                 (238, 232, 222),
             )
@@ -1345,14 +1472,16 @@ def main():
             elif cat_mood == "sleep":
                 state_label = "Cat is sleeping... zZz"
             elif ball_state == "held":
-                state_label = "Holding ball"
+                state_label = "Holding toy"
             elif ball_state == "loose":
-                state_label = "Ball loose (pick it up!)"
+                state_label = "Toy loose (pick it up!)"
             else:
-                state_label = "Cat stole the ball! Chase it to take it back!"
+                state_label = "Cat stole the toy! Chase it to take it back!"
             on_surface = "Airborne!" if cat_z > new_ground_z + 4.0 else ("On furniture" if new_ground_z > 0 else "Floor")
+            cat_name = CAT_PALETTES[cat_type]["label"]
+            toy_name = TOY_LABELS[toy_type]
             speed_txt = font.render(
-                f"Speed: {int(cat_vel.length())} px/s   Surface: {on_surface}   [{state_label}]",
+                f"{cat_name}  ·  {toy_name}  |  Speed: {int(cat_vel.length())} px/s   Surface: {on_surface}   [{state_label}]",
                 True,
                 (212, 198, 178),
             )
