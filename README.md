@@ -20,6 +20,7 @@ You can also open [docs/index.html](docs/index.html) locally in any modern brows
  - **Left-click** (or **Space** in browser) while holding the ball to toss it in a bouncing arc across the room
  - The cat **jumps onto and over low furniture** (sofa, coffee table, armchair, ottoman) and smoothly steers around solid obstacles (TV stand, houseplant, floor lamp)
  - If the cat catches the ball, it **runs away carrying it**—chase the cat and touch the ball with your open hand to take it back
+ - Move your mouse out of the frame (or stay still) and the cat will **calm down, drop the ball, stroll to a cozy spot, sit, groom itself, or curl up asleep**
  - **Esc** (desktop) or close window to quit
 
 ---

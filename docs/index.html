@@ -81,7 +81,7 @@
     <canvas id="game" width="1024" height="768" aria-label="Cat Chase Ball Living Room Game"></canvas>
   </div>
   <div class="footer">
-    <span>Move mouse / drag finger to play · Click or Space to toss ball</span>
+    <span>Move mouse / drag finger to play · Click or Space to toss · Leave frame to watch cat rest</span>
     <button id="tossBtn" type="button">Toss Ball</button>
     <button id="resetBtn" type="button">Reset</button>
   </div>
@@ -125,9 +125,10 @@
       const HAND_COLOR = "#ffdab9";
       const HAND_OUTLINE = "#6e4b37";
 
-      // Physics & behavior constants (matching Python version)
+      // Physics & behavior constants
       const MAX_SPEED = 215.0;
       const FLEE_SPEED = 265.0;
+      const STROLL_SPEED = 92.0;
       const ACCELERATION = 720.0;
       const DAMPING = 2.2;
       const GRAVITY = 1050.0;
@@ -142,6 +143,8 @@
       const MOUSE_RADIUS = 12;
       const CAT_SIZE = 56;
       const CAT_RADIUS = 24.0;
+      const OUTSIDE_IDLE_DELAY = 0.6;
+      const STILL_IDLE_DELAY = 4.0;
 
       function makeRect(x, y, w, h) {
         return {
@@ -187,14 +190,25 @@
         { x: 870, y: 610 },
       ];
 
+      const COZY_SPOTS = [
+        { kind: "cat_bed", pos: { x: 131, y: 656 } },
+        { kind: "sofa", pos: { x: 410, y: 158 } },
+        { kind: "sofa", pos: { x: 595, y: 158 } },
+        { kind: "armchair", pos: { x: 852, y: 392 } },
+        { kind: "ottoman", pos: { x: 210, y: 430 } },
+        { kind: "rug", pos: { x: 512, y: 520 } },
+        { kind: "lamp", pos: { x: 835, y: 195 } },
+      ];
+
       const STEER_DIRS = Array.from({ length: 16 }, (_, i) => {
         const a = (i * Math.PI) / 8;
         return { x: Math.cos(a), y: Math.sin(a) };
       });
 
-      // Vector helpers
       const vLen = (x, y) => Math.hypot(x, y);
       const vDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      const randRange = (a, b) => a + Math.random() * (b - a);
+      const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
       function lerpAngle(current, target, maxStep) {
         let diff = ((target - current + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -258,20 +272,41 @@
         return Math.hypot(point.x - cx, point.y - cy) < radius;
       }
 
-      function pickFleeWaypoint(catPos, cursorPos, currentTarget = null) {
+      function pickFleeWaypoint(catPos, cursorPos, currentTarget = null, recentTargets = []) {
         let bestWp = FLEE_WAYPOINTS[0];
         let bestScore = -1e9;
         for (const wp of FLEE_WAYPOINTS) {
           if (vDist(wp, catPos) < 170.0) continue;
           if (currentTarget && vDist(wp, currentTarget) < 60.0) continue;
-          let score = vDist(wp, cursorPos) + (Math.random() * 70 - 35);
+          let score = vDist(wp, cursorPos) + randRange(-45, 45);
           if (segmentPassesNear(catPos, wp, cursorPos, 135.0)) score -= 260.0;
+          for (let i = 0; i < recentTargets.length; i++) {
+            if (vDist(wp, recentTargets[i]) < 75.0) {
+              score -= 280.0 - i * 45.0;
+            }
+          }
           if (score > bestScore) {
             bestScore = score;
             bestWp = wp;
           }
         }
         return { x: bestWp.x, y: bestWp.y };
+      }
+
+      function pickCozySpot(catPos, preferBed = false) {
+        const weighted = COZY_SPOTS.map((spot) => {
+          let w = preferBed && (spot.kind === "cat_bed" || spot.kind === "sofa") ? 3.0 : 1.0;
+          if (vDist(spot.pos, catPos) < 55.0) w *= 0.25;
+          return { kind: spot.kind, pos: spot.pos, w };
+        });
+        const total = weighted.reduce((s, item) => s + item.w, 0);
+        let r = Math.random() * total;
+        for (const item of weighted) {
+          r -= item.w;
+          if (r <= 0) return { kind: item.kind, pos: { x: item.pos.x, y: item.pos.y } };
+        }
+        const first = weighted[0];
+        return { kind: first.kind, pos: { x: first.pos.x, y: first.pos.y } };
       }
 
       function chooseClearDirection(pos, targetPos, currentAngle, avoidPoint = null) {
@@ -440,7 +475,6 @@
           fillStrokeRoundRect(ctx, r.x + 7, r.y + 7, r.width - 14, r.height - 14, 8, "#946644");
           fillStrokeRoundRect(ctx, r.x + 24, r.y + 24, 54, 40, 4, "#eee8da");
           fillStrokeRoundRect(ctx, r.x + 30, r.y + 30, 42, 12, 2, "#b67a5c");
-          // Mug & coaster
           const mx = r.right - 44, my = r.y + 42;
           ctx.fillStyle = "#dcd4c6";
           ctx.beginPath(); ctx.arc(mx, my, 13, 0, Math.PI * 2); ctx.fill();
@@ -516,7 +550,6 @@
         }
       }
 
-      // Deterministic PRNG for wood plank shading
       function mulberry32(seed) {
         let a = seed >>> 0;
         return () => {
@@ -536,7 +569,6 @@
         c.fillStyle = WALL_COLOR;
         c.fillRect(0, 0, WIDTH, HEIGHT);
 
-        // Hardwood floor planks
         c.fillStyle = FLOOR_BASE;
         c.fillRect(PLAY_RECT.left, PLAY_RECT.top, PLAY_RECT.width, PLAY_RECT.height);
         const rng = mulberry32(42);
@@ -560,7 +592,6 @@
           row++;
         }
 
-        // Baseboards
         fillStrokeRoundRect(
           c,
           PLAY_RECT.left - 5,
@@ -573,7 +604,6 @@
           6
         );
 
-        // Woven area rug
         const rug = makeRect(236, 252, 552, 344);
         fillStrokeRoundRect(c, rug.x, rug.y, rug.width, rug.height, 10, "#dacebc");
         fillStrokeRoundRect(c, rug.x + 7, rug.y + 7, rug.width - 14, rug.height - 14, 8, null, "#b07e62", 5);
@@ -585,12 +615,10 @@
           c.beginPath(); c.moveTo(rug.right, fy); c.lineTo(rug.right + 8, fy); c.stroke();
         }
 
-        // Jumpable furniture baked into background
         for (const item of FURNITURE) {
           if (item.kind === "jumpable") drawFurnitureItem(c, item);
         }
 
-        // Top HUD bar
         c.fillStyle = HUD_BG;
         c.fillRect(0, 0, WIDTH, HUD_HEIGHT - 6);
         c.strokeStyle = "#5c524a";
@@ -675,93 +703,7 @@
         }
       }
 
-      function drawCat(ctx, pos, angle, z, groundZ, walkPhase, tailPhase) {
-        const air = Math.max(0, z - groundZ);
-        const scale = 1.0 + Math.min(0.24, air * 0.0042);
-        const s = CAT_SIZE * scale;
-
-        const shScale = Math.max(0.58, 1.0 - air * 0.0045);
-        drawShadowEllipse(
-          ctx,
-          pos.x + 4,
-          pos.y + 8 - groundZ * 0.65,
-          CAT_SIZE * 0.68 * shScale,
-          CAT_SIZE * 0.46 * shScale,
-          Math.max(0.1, 0.28 - air * 0.0016)
-        );
-
-        const cx = pos.x;
-        const cy = pos.y - z * 0.8;
-        const fx = Math.cos(angle), fy = Math.sin(angle);
-        const rx = -fy, ry = fx;
-
-        // Multi-segment curved swaying tail
-        const tailBaseX = cx - fx * (s * 0.52);
-        const tailBaseY = cy - fy * (s * 0.52);
-        const tailPts = [];
-        for (let i = 0; i < 6; i++) {
-          const t = i / 5;
-          const sway = Math.sin(tailPhase - t * 2.1) * (s * 0.24 * t);
-          tailPts.push([
-            tailBaseX - fx * (s * 0.72 * t) + rx * sway,
-            tailBaseY - fy * (s * 0.72 * t) + ry * sway,
-          ]);
-        }
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.strokeStyle = CAT_STRIPE;
-        ctx.lineWidth = Math.max(3, s * 0.12);
-        ctx.beginPath();
-        tailPts.forEach(([px, py], idx) => (idx === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
-        ctx.stroke();
-        ctx.strokeStyle = CAT_COLOR;
-        ctx.lineWidth = Math.max(2, s * 0.09);
-        ctx.stroke();
-
-        // Animated stepping paws
-        const stride = air > 4.0 ? 0 : Math.sin(walkPhase) * (s * 0.14);
-        const paws = [
-          [0.32 + stride / s, -0.34],
-          [0.32 - stride / s, 0.34],
-          [-0.30 - stride / s, -0.34],
-          [-0.30 + stride / s, 0.34],
-        ];
-        for (const [pf, pr] of paws) {
-          const px = cx + fx * (s * pf) + rx * (s * pr);
-          const py = cy + fy * (s * pf) + ry * (s * pr);
-          ctx.fillStyle = CAT_STRIPE;
-          ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.12), 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = "#fac88c";
-          ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.09), 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Oriented body
-        for (const [bf, brad] of [[-0.24, 0.40], [0.0, 0.44], [0.24, 0.40]]) {
-          ctx.fillStyle = CAT_COLOR;
-          ctx.beginPath();
-          ctx.arc(cx + fx * (s * bf), cy + fy * (s * bf), s * brad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Tabby stripes
-        ctx.strokeStyle = CAT_STRIPE;
-        ctx.lineWidth = Math.max(2, s * 0.06);
-        for (const sf of [-0.18, 0.0, 0.16]) {
-          const bx = cx + fx * (s * sf);
-          const by = cy + fy * (s * sf);
-          ctx.beginPath();
-          ctx.moveTo(bx - rx * (s * 0.26), by - ry * (s * 0.26));
-          ctx.lineTo(bx + rx * (s * 0.26), by + ry * (s * 0.26));
-          ctx.stroke();
-        }
-
-        // Head
-        const hx = cx + fx * (s * 0.56);
-        const hy = cy + fy * (s * 0.56);
-        ctx.fillStyle = CAT_COLOR;
-        ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
-
-        // Nested ears
+      function drawEars(ctx, hx, hy, fx, fy, rx, ry, s) {
         for (const side of [-1, 1]) {
           const outer = [
             { x: hx - fx * (s * 0.06) + rx * (side * s * 0.18), y: hy - fy * (s * 0.06) + ry * (side * s * 0.18) },
@@ -788,17 +730,215 @@
           ctx.lineTo(inner[2].x, inner[2].y);
           ctx.closePath(); ctx.fill();
         }
+      }
 
-        // Eyes & pupils
+      function drawCat(ctx, pos, angle, z, groundZ, walkPhase, tailPhase, mood = "active", moodPhase = 0) {
+        const air = Math.max(0, z - groundZ);
+        const scale = 1.0 + Math.min(0.24, air * 0.0042);
+        const s = CAT_SIZE * scale;
+
+        const cx = pos.x;
+        const cy = pos.y - z * 0.8;
+        const fx = Math.cos(angle), fy = Math.sin(angle);
+        const rx = -fy, ry = fx;
+
+        if (mood === "sleep") {
+          const breath = 1.0 + 0.035 * Math.sin(moodPhase * 2.2);
+          const sr = s * breath;
+          drawShadowEllipse(ctx, pos.x + 3, pos.y + 7 - groundZ * 0.65, CAT_SIZE * 0.56, CAT_SIZE * 0.48, 0.25);
+
+          // Curled sleeping body
+          ctx.fillStyle = CAT_COLOR;
+          ctx.beginPath(); ctx.arc(cx, cy, sr * 0.50, 0, Math.PI * 2); ctx.fill();
+
+          // Back stripes
+          ctx.strokeStyle = CAT_STRIPE;
+          ctx.lineWidth = Math.max(2, sr * 0.06);
+          for (const deg of [-35, 0, 35]) {
+            const rad = angle + ((deg + 160) * Math.PI) / 180;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(rad) * sr * 0.16, cy + Math.sin(rad) * sr * 0.16);
+            ctx.lineTo(cx + Math.cos(rad) * sr * 0.44, cy + Math.sin(rad) * sr * 0.44);
+            ctx.stroke();
+          }
+
+          // Wrapped tail
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const t = i / 9;
+            const a = angle + Math.PI * (0.65 + t * 1.05);
+            const rTail = sr * (0.50 + 0.04 * Math.sin(moodPhase * 1.4 + t * 2.0));
+            const tx = cx + Math.cos(a) * rTail;
+            const ty = cy + Math.sin(a) * rTail;
+            if (i === 0) ctx.moveTo(tx, ty);
+            else ctx.lineTo(tx, ty);
+          }
+          ctx.strokeStyle = CAT_STRIPE;
+          ctx.lineWidth = Math.max(3, sr * 0.12);
+          ctx.stroke();
+          ctx.strokeStyle = CAT_COLOR;
+          ctx.lineWidth = Math.max(2, sr * 0.09);
+          ctx.stroke();
+
+          // Tucked head
+          const hx = cx + fx * (sr * 0.28) + rx * (sr * 0.12);
+          const hy = cy + fy * (sr * 0.28) + ry * (sr * 0.12);
+          ctx.fillStyle = CAT_COLOR;
+          ctx.beginPath(); ctx.arc(hx, hy, sr * 0.34, 0, Math.PI * 2); ctx.fill();
+          drawEars(ctx, hx, hy, fx, fy, rx, ry, sr * 0.85);
+
+          // Closed peaceful eyes
+          ctx.strokeStyle = PUPIL_COLOR;
+          ctx.lineWidth = 2;
+          const ebx = hx + fx * (sr * 0.12);
+          const eby = hy + fy * (sr * 0.12);
+          for (const side of [-1, 1]) {
+            const ex = ebx + rx * (side * sr * 0.12);
+            const ey = eby + ry * (side * sr * 0.12);
+            ctx.beginPath();
+            ctx.moveTo(ex - rx * (sr * 0.05), ey - ry * (sr * 0.05));
+            ctx.lineTo(ex + rx * (sr * 0.05), ey + ry * (sr * 0.05));
+            ctx.stroke();
+          }
+
+          ctx.fillStyle = CAT_INNER_EAR;
+          ctx.beginPath();
+          ctx.arc(hx + fx * (sr * 0.27), hy + fy * (sr * 0.27), Math.max(2, sr * 0.04), 0, Math.PI * 2);
+          ctx.fill();
+
+          // Floating Zzz
+          const zLabels = ["z", "z", "Z"];
+          ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+          for (let i = 0; i < zLabels.length; i++) {
+            const cyc = (moodPhase * 0.45 + i * 0.33) % 1.0;
+            const zx = hx + 14 + i * 8 + Math.sin(cyc * 5.0) * 4;
+            const zy = hy - 14 - cyc * 34;
+            const alpha = Math.sin(cyc * Math.PI) * 0.88;
+            if (alpha > 0.08) {
+              ctx.fillStyle = `rgba(255, 250, 240, ${alpha.toFixed(2)})`;
+              ctx.fillText(zLabels[i], zx, zy);
+            }
+          }
+          return;
+        }
+
+        const isSeated = mood === "sit" || mood === "groom";
+        const shScale = Math.max(0.58, 1.0 - air * 0.0045);
+        drawShadowEllipse(
+          ctx,
+          pos.x + 4,
+          pos.y + 8 - groundZ * 0.65,
+          CAT_SIZE * (isSeated ? 0.56 : 0.68) * shScale,
+          CAT_SIZE * 0.46 * shScale,
+          Math.max(0.1, 0.28 - air * 0.0016)
+        );
+
+        // Multi-segment curved swaying tail
+        const tailBaseX = cx - fx * (s * (isSeated ? 0.42 : 0.52));
+        const tailBaseY = cy - fy * (s * (isSeated ? 0.42 : 0.52));
+        const tailAmp = isSeated ? 0.16 : 0.24;
+        const tailPts = [];
+        for (let i = 0; i < 6; i++) {
+          const t = i / 5;
+          const sway = Math.sin(tailPhase - t * 2.1) * (s * tailAmp * t);
+          tailPts.push([
+            tailBaseX - fx * (s * 0.72 * t) + rx * sway,
+            tailBaseY - fy * (s * 0.72 * t) + ry * sway,
+          ]);
+        }
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = CAT_STRIPE;
+        ctx.lineWidth = Math.max(3, s * 0.12);
+        ctx.beginPath();
+        tailPts.forEach(([px, py], idx) => (idx === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+        ctx.stroke();
+        ctx.strokeStyle = CAT_COLOR;
+        ctx.lineWidth = Math.max(2, s * 0.09);
+        ctx.stroke();
+
+        // Paws & body
+        let bodyCircles;
+        if (isSeated) {
+          for (const side of [-1, 1]) {
+            const px = cx + fx * (s * 0.38) + rx * (side * s * 0.17);
+            const py = cy + fy * (s * 0.38) + ry * (side * s * 0.17);
+            ctx.fillStyle = CAT_STRIPE;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#fac88c";
+            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
+          }
+          bodyCircles = [[-0.14, 0.44], [0.10, 0.42]];
+        } else {
+          const stride = air > 4.0 ? 0 : Math.sin(walkPhase) * (s * 0.14);
+          const paws = [
+            [0.32 + stride / s, -0.34],
+            [0.32 - stride / s, 0.34],
+            [-0.30 - stride / s, -0.34],
+            [-0.30 + stride / s, 0.34],
+          ];
+          for (const [pf, pr] of paws) {
+            const px = cx + fx * (s * pf) + rx * (s * pr);
+            const py = cy + fy * (s * pf) + ry * (s * pr);
+            ctx.fillStyle = CAT_STRIPE;
+            ctx.beginPath(); ctx.arc(px, py, Math.max(3, s * 0.12), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#fac88c";
+            ctx.beginPath(); ctx.arc(px, py, Math.max(2, s * 0.09), 0, Math.PI * 2); ctx.fill();
+          }
+          bodyCircles = [[-0.24, 0.40], [0.0, 0.44], [0.24, 0.40]];
+        }
+
+        for (const [bf, brad] of bodyCircles) {
+          ctx.fillStyle = CAT_COLOR;
+          ctx.beginPath();
+          ctx.arc(cx + fx * (s * bf), cy + fy * (s * bf), s * brad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Tabby stripes
+        ctx.strokeStyle = CAT_STRIPE;
+        ctx.lineWidth = Math.max(2, s * 0.06);
+        const stripes = isSeated ? [-0.12, 0.06] : [-0.18, 0.0, 0.16];
+        for (const sf of stripes) {
+          const bx = cx + fx * (s * sf);
+          const by = cy + fy * (s * sf);
+          ctx.beginPath();
+          ctx.moveTo(bx - rx * (s * 0.26), by - ry * (s * 0.26));
+          ctx.lineTo(bx + rx * (s * 0.26), by + ry * (s * 0.26));
+          ctx.stroke();
+        }
+
+        // Head
+        const headShift = isSeated ? 0.42 : 0.56;
+        const groomBob = mood === "groom" ? Math.sin(moodPhase * 7.5) * (s * 0.04) : 0;
+        const hx = cx + fx * (s * headShift + groomBob);
+        const hy = cy + fy * (s * headShift + groomBob);
+        ctx.fillStyle = CAT_COLOR;
+        ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
+        drawEars(ctx, hx, hy, fx, fy, rx, ry, s);
+
+        // Eyes
+        const blinking = mood === "sit" && (moodPhase % 3.4) > 3.22;
         const ebx = hx + fx * (s * 0.15);
         const eby = hy + fy * (s * 0.15);
         for (const side of [-1, 1]) {
           const ex = ebx + rx * (side * s * 0.15);
           const ey = eby + ry * (side * s * 0.15);
-          ctx.fillStyle = EYE_COLOR;
-          ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, s * 0.085), 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = PUPIL_COLOR;
-          ctx.beginPath(); ctx.arc(ex + fx * (s * 0.03), ey + fy * (s * 0.03), Math.max(2, s * 0.045), 0, Math.PI * 2); ctx.fill();
+          if (blinking || mood === "groom") {
+            ctx.strokeStyle = PUPIL_COLOR;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ex - rx * (s * 0.06), ey - ry * (s * 0.06));
+            ctx.lineTo(ex + rx * (s * 0.06), ey + ry * (s * 0.06));
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = EYE_COLOR;
+            ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, s * 0.085), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = PUPIL_COLOR;
+            ctx.beginPath(); ctx.arc(ex + fx * (s * 0.03), ey + fy * (s * 0.03), Math.max(2, s * 0.045), 0, Math.PI * 2); ctx.fill();
+          }
         }
 
         // Nose
@@ -806,6 +946,17 @@
         ctx.beginPath();
         ctx.arc(hx + fx * (s * 0.33), hy + fy * (s * 0.33), Math.max(2, s * 0.045), 0, Math.PI * 2);
         ctx.fill();
+
+        // Grooming paw licking/rubbing face
+        if (mood === "groom") {
+          const rub = Math.sin(moodPhase * 7.5);
+          const lpx = hx + fx * (s * (0.24 + 0.08 * rub)) + rx * (s * (0.26 - 0.10 * rub));
+          const lpy = hy + fy * (s * (0.24 + 0.08 * rub)) + ry * (s * (0.26 - 0.10 * rub));
+          ctx.fillStyle = CAT_STRIPE;
+          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#fac88c";
+          ctx.beginPath(); ctx.arc(lpx, lpy, Math.max(2, s * 0.085), 0, Math.PI * 2); ctx.fill();
+        }
       }
 
       // Main setup
@@ -815,10 +966,51 @@
 
       // State
       let catPos, catVel, catAngle, catZ, catVz, walkPhase, tailPhase;
-      let cursorPos, pointerInside;
+      let cursorPos, prevCursorPos, handSpeed, pointerInside;
       let ballPos, ballVel, ballZ, ballVz, ballState;
       let throwLockTimer, grabLockTimer, catCatchCooldown;
-      let fleeTarget, fleeRetargetTimer;
+      let fleeTarget, fleeRetargetTimer, recentFleeWaypoints;
+      let outsideTimer, mouseIdleTimer, catMood, moodTimer, moodPhase;
+      let cozyTarget, cozyKind, sitLookAngle, sitLookTimer;
+
+      function wakeCat() {
+        outsideTimer = 0;
+        mouseIdleTimer = 0;
+        if (catMood !== "active") {
+          catMood = "active";
+          moodTimer = 0;
+          cozyTarget = null;
+          cozyKind = null;
+        }
+      }
+
+      function chooseNextIdleMood(arrivedKind = null) {
+        moodPhase = 0;
+        if ((arrivedKind === "cat_bed" || arrivedKind === "sofa") && Math.random() < 0.55) {
+          catMood = "sleep";
+          moodTimer = randRange(7.5, 12.0);
+          return;
+        }
+        if (catMood === "stroll") catMood = randChoice(["sit", "groom", "sleep"]);
+        else if (catMood === "sleep") catMood = randChoice(["sit", "groom"]);
+        else if (catMood === "groom") catMood = randChoice(["sleep", "stroll", "sit"]);
+        else catMood = randChoice(["groom", "stroll", "sleep"]);
+
+        if (catMood === "stroll") {
+          const picked = pickCozySpot(catPos, Math.random() < 0.6);
+          cozyKind = picked.kind;
+          cozyTarget = picked.pos;
+          moodTimer = randRange(6.0, 10.0);
+        } else if (catMood === "sit") {
+          moodTimer = randRange(3.5, 6.0);
+          sitLookAngle = catAngle;
+          sitLookTimer = randRange(1.2, 2.2);
+        } else if (catMood === "groom") {
+          moodTimer = randRange(4.0, 6.5);
+        } else if (catMood === "sleep") {
+          moodTimer = randRange(7.5, 12.0);
+        }
+      }
 
       function resetGame() {
         catPos = { x: 280, y: 520 };
@@ -830,6 +1022,8 @@
         tailPhase = 0.0;
 
         cursorPos = { x: 540, y: 420 };
+        prevCursorPos = { x: 540, y: 420 };
+        handSpeed = 0.0;
         pointerInside = true;
         ballPos = { x: cursorPos.x, y: cursorPos.y };
         ballVel = { x: 0, y: 0 };
@@ -842,9 +1036,21 @@
         catCatchCooldown = 0.0;
         fleeTarget = null;
         fleeRetargetTimer = 0.0;
+        recentFleeWaypoints = [];
+
+        outsideTimer = 0.0;
+        mouseIdleTimer = 0.0;
+        catMood = "active";
+        moodTimer = 0.0;
+        moodPhase = 0.0;
+        cozyTarget = null;
+        cozyKind = null;
+        sitLookAngle = 0.0;
+        sitLookTimer = 0.0;
       }
 
       function tossBall() {
+        wakeCat();
         if (ballState !== "held") return;
         const dest = randomTargetAwayFrom(catPos);
         const flightTime = 0.52;
@@ -867,12 +1073,15 @@
 
       canvas.addEventListener("pointermove", (e) => {
         pointerInside = true;
-        cursorPos = toCanvasCoords(e.clientX, e.clientY);
+        const nextPos = toCanvasCoords(e.clientX, e.clientY);
+        if (vDist(nextPos, cursorPos) > 1.5) wakeCat();
+        cursorPos = nextPos;
       });
 
       canvas.addEventListener("pointerenter", (e) => {
         pointerInside = true;
         cursorPos = toCanvasCoords(e.clientX, e.clientY);
+        wakeCat();
       });
 
       canvas.addEventListener("pointerleave", () => {
@@ -883,6 +1092,7 @@
         if (e.button !== 0 && e.pointerType === "mouse") return;
         pointerInside = true;
         cursorPos = toCanvasCoords(e.clientX, e.clientY);
+        wakeCat();
         if (ballState === "held") {
           tossBall();
         } else if (ballState === "loose" && vDist(cursorPos, ballPos) <= PICKUP_DISTANCE) {
@@ -917,17 +1127,61 @@
         catCatchCooldown = Math.max(0, catCatchCooldown - dt);
         fleeRetargetTimer = Math.max(0, fleeRetargetTimer - dt);
 
-        // Pick up loose ball or take it back from the cat
-        if (ballState === "loose" && throwLockTimer <= 0) {
-          if (vDist(cursorPos, ballPos) <= PICKUP_DISTANCE && ballZ - surfaceHeightAt(ballPos) < 35.0) {
-            ballState = "held";
-            ballVel = { x: 0, y: 0 };
-            ballVz = 0;
+        if (pointerInside) {
+          outsideTimer = 0;
+          const moved = vDist(cursorPos, prevCursorPos);
+          handSpeed = handSpeed * 0.75 + (moved / Math.max(dt, 1e-4)) * 0.25;
+          if (moved <= 1.5) mouseIdleTimer += dt;
+          else mouseIdleTimer = 0;
+          prevCursorPos = { x: cursorPos.x, y: cursorPos.y };
+        } else {
+          outsideTimer += dt;
+          mouseIdleTimer += dt;
+          handSpeed *= 0.8;
+        }
+
+        // Transition into calm autonomous behavior when mouse leaves frame or stays idle
+        const idleTriggered =
+          outsideTimer >= OUTSIDE_IDLE_DELAY ||
+          (mouseIdleTimer >= STILL_IDLE_DELAY && ballState !== "loose");
+        if (idleTriggered && catMood === "active") {
+          if (ballState === "cat") {
+            ballState = "loose";
+            ballVel = { x: Math.cos(catAngle) * 45.0, y: Math.sin(catAngle) * 45.0 };
+            ballVz = 60.0;
+            fleeTarget = null;
+            recentFleeWaypoints = [];
           }
-        } else if (ballState === "cat" && grabLockTimer <= 0) {
-          if (vDist(cursorPos, ballPos) <= TAKE_BACK_DISTANCE) {
-            ballState = "held";
-            catCatchCooldown = CAT_CATCH_COOLDOWN;
+          if (Math.random() < 0.65) {
+            catMood = "stroll";
+            const picked = pickCozySpot(catPos, true);
+            cozyKind = picked.kind;
+            cozyTarget = picked.pos;
+            moodTimer = randRange(6.0, 10.0);
+          } else {
+            catMood = randChoice(["sit", "groom"]);
+            moodTimer = randRange(3.5, 6.0);
+            sitLookAngle = catAngle;
+            sitLookTimer = 1.6;
+          }
+          moodPhase = 0;
+        }
+
+        // Pick up loose ball or take it back from the cat when pointer is active inside
+        if (pointerInside) {
+          if (ballState === "loose" && throwLockTimer <= 0) {
+            if (vDist(cursorPos, ballPos) <= PICKUP_DISTANCE && ballZ - surfaceHeightAt(ballPos) < 35.0) {
+              ballState = "held";
+              ballVel = { x: 0, y: 0 };
+              ballVz = 0;
+              wakeCat();
+            }
+          } else if (ballState === "cat" && grabLockTimer <= 0) {
+            if (vDist(cursorPos, ballPos) <= TAKE_BACK_DISTANCE) {
+              ballState = "held";
+              catCatchCooldown = CAT_CATCH_COOLDOWN;
+              wakeCat();
+            }
           }
         }
 
@@ -986,10 +1240,45 @@
         let desired = { x: 0, y: 0 };
         let speedCap = MAX_SPEED;
 
-        if (ballState === "cat") {
+        if (catMood !== "active") {
+          moodPhase += dt;
+          moodTimer -= dt;
+          if (catMood === "stroll") {
+            speedCap = STROLL_SPEED;
+            if (!cozyTarget) {
+              const picked = pickCozySpot(catPos, true);
+              cozyKind = picked.kind;
+              cozyTarget = picked.pos;
+            }
+            const distCozy = vDist(cozyTarget, catPos);
+            if (distCozy <= 24.0 || moodTimer <= 0) {
+              chooseNextIdleMood(cozyKind);
+            } else {
+              const moveDir = chooseClearDirection(catPos, cozyTarget, catAngle);
+              const pace = STROLL_SPEED * Math.min(1.0, Math.max(0.35, distCozy / 70.0));
+              desired = { x: moveDir.x * pace, y: moveDir.y * pace };
+              catAngle = lerpAngle(catAngle, Math.atan2(moveDir.y, moveDir.x), TURN_SPEED * 0.65 * dt);
+            }
+          } else if (catMood === "sit") {
+            sitLookTimer -= dt;
+            if (sitLookTimer <= 0) {
+              sitLookAngle = catAngle + randRange(-0.9, 0.9);
+              sitLookTimer = randRange(1.4, 2.5);
+            }
+            catAngle = lerpAngle(catAngle, sitLookAngle, 2.2 * dt);
+            if (moodTimer <= 0) chooseNextIdleMood();
+          } else if (catMood === "groom" || catMood === "sleep") {
+            if (moodTimer <= 0) chooseNextIdleMood();
+          }
+        } else if (ballState === "cat") {
           speedCap = FLEE_SPEED;
           const handDist = vDist(catPos, cursorPos);
-          if (catGroundZ >= 18.0 && handDist > 340.0 && catZ <= catGroundZ + 1.0) {
+          const safePause =
+            handDist > 290.0 &&
+            handSpeed < 65.0 &&
+            catZ <= catGroundZ + 1.0 &&
+            (!fleeTarget || vDist(fleeTarget, catPos) < 95.0 || catGroundZ >= 18.0);
+          if (safePause) {
             const lx = cursorPos.x - catPos.x;
             const ly = cursorPos.y - catPos.y;
             if (Math.hypot(lx, ly) > 1.0) {
@@ -1002,7 +1291,11 @@
               vDist(fleeTarget, cursorPos) < 165.0 ||
               (fleeRetargetTimer <= 0 && vLen(catVel.x, catVel.y) < 60.0);
             if (needNew) {
-              fleeTarget = pickFleeWaypoint(catPos, cursorPos, fleeTarget);
+              if (fleeTarget) {
+                recentFleeWaypoints.push({ x: fleeTarget.x, y: fleeTarget.y });
+                if (recentFleeWaypoints.length > 3) recentFleeWaypoints.shift();
+              }
+              fleeTarget = pickFleeWaypoint(catPos, cursorPos, fleeTarget, recentFleeWaypoints);
               fleeRetargetTimer = 0.45;
             }
             const fleeDir = chooseClearDirection(catPos, fleeTarget, catAngle, cursorPos);
@@ -1011,6 +1304,7 @@
           }
         } else {
           fleeTarget = null;
+          recentFleeWaypoints = [];
           const dx = ballPos.x - catPos.x;
           const dy = ballPos.y - catPos.y;
           const dist = Math.hypot(dx, dy);
@@ -1086,13 +1380,18 @@
         }
 
         walkPhase += speed * dt * 0.09;
-        tailPhase += (2.8 + speed * 0.025) * dt;
+        const tailRate =
+          catMood === "sit" || catMood === "groom" || catMood === "sleep"
+            ? 1.4
+            : 2.8 + speed * 0.025;
+        tailPhase += tailRate * dt;
 
-        // Catch detection
-        if (ballState !== "cat" && catCatchCooldown <= 0) {
+        // Catch detection (active play only)
+        if (catMood === "active" && ballState !== "cat" && catCatchCooldown <= 0) {
           if (vDist(catPos, ballPos) <= CATCH_DISTANCE && Math.abs(catZ - ballZ) <= 32.0) {
             ballState = "cat";
             grabLockTimer = GRAB_LOCK_TIME;
+            recentFleeWaypoints = [];
             fleeTarget = pickFleeWaypoint(catPos, cursorPos);
             fleeRetargetTimer = 0.45;
             const fleeDir = chooseClearDirection(catPos, fleeTarget, catAngle, cursorPos);
@@ -1126,7 +1425,7 @@
         }
 
         const catGroundZ = surfaceHeightAt(catPos);
-        drawCat(ctx, catPos, catAngle, catZ, catGroundZ, walkPhase, tailPhase);
+        drawCat(ctx, catPos, catAngle, catZ, catGroundZ, walkPhase, tailPhase, catMood, moodPhase);
 
         if (ballState === "cat") {
           drawBall(ctx, ballPos, ballZ, catGroundZ);
@@ -1134,21 +1433,23 @@
 
         if (pointerInside) {
           drawHand(ctx, cursorPos, ballState === "held");
-        } else if (ballState === "held") {
-          drawBall(ctx, ballPos, ballZ, surfaceHeightAt(ballPos));
         }
 
         // HUD text
         ctx.font = '500 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillStyle = "#eee8de";
         ctx.fillText(
-          "Left-click / Space: toss ball  |  Touch ball to pick up or take it back from the cat",
+          "Left-click / Space: toss ball  |  Touch ball to pick up or take it back  |  Leave frame to let cat rest",
           16,
           24
         );
 
         let stateLabel = "Holding ball";
-        if (ballState === "loose") stateLabel = "Ball loose (pick it up!)";
+        if (catMood === "stroll") stateLabel = "Cat is strolling to a cozy spot...";
+        else if (catMood === "sit") stateLabel = "Cat is sitting & looking around";
+        else if (catMood === "groom") stateLabel = "Cat is grooming itself";
+        else if (catMood === "sleep") stateLabel = "Cat is sleeping... zZz";
+        else if (ballState === "loose") stateLabel = "Ball loose (pick it up!)";
         else if (ballState === "cat") stateLabel = "Cat stole the ball! Chase it to take it back!";
 
         const onSurface =
