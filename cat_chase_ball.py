@@ -756,6 +756,7 @@ def draw_cat(
     mood="active",
     mood_phase=0.0,
     zzz_font=None,
+    carrying_ball=False,
 ):
     air = max(0.0, z - ground_z)
     scale = 1.0 + min(0.24, air * 0.0042)
@@ -870,6 +871,12 @@ def draw_cat(
     head_shift = 0.42 if mood in ("sit", "groom") else 0.56
     groom_bob = math.sin(mood_phase * 7.5) * (s * 0.04) if mood == "groom" else 0.0
     head_pos = center + forward * (s * head_shift + groom_bob)
+
+    # Draw carried ball tucked into the mouth BEFORE the upper head/muzzle so nose & eyes stay visible
+    if carrying_ball:
+        mouth_world = pos + forward * (size * 1.00)
+        draw_ball(surface, mouth_world, z=z, ground_z=ground_z)
+
     pygame.draw.circle(surface, CAT_COLOR, (int(head_pos.x), int(head_pos.y)), int(s * 0.40))
     _draw_ears(surface, head_pos, forward, right, s)
 
@@ -887,7 +894,13 @@ def draw_cat(
             look = forward * (s * 0.03)
             pygame.draw.circle(surface, PUPIL_COLOR, (int(ep.x + look.x), int(ep.y + look.y)), max(2, int(s * 0.045)))
 
-    nose = head_pos + forward * (s * 0.33)
+    if carrying_ball:
+        # Small rounded muzzle cheeks hugging the back of the ball in the mouth
+        for side in (-1, 1):
+            cheek = head_pos + forward * (s * 0.30) + right * (side * s * 0.11)
+            pygame.draw.circle(surface, CAT_COLOR, (int(cheek.x), int(cheek.y)), max(3, int(s * 0.11)))
+
+    nose = head_pos + forward * (s * 0.34)
     pygame.draw.circle(surface, CAT_INNER_EAR, (int(nose.x), int(nose.y)), max(2, int(s * 0.045)))
 
     if mood == "groom":
@@ -1283,8 +1296,8 @@ def main():
 
             if ball_state == "cat":
                 forward = Vector2(math.cos(cat_angle), math.sin(cat_angle))
-                ball_pos = clamp_point(cat_pos + forward * (CAT_SIZE * 0.88), MOUSE_RADIUS, MOUSE_RADIUS)
-                ball_z = cat_z + 4.0
+                ball_pos = clamp_point(cat_pos + forward * (CAT_SIZE * 1.00), MOUSE_RADIUS, MOUSE_RADIUS)
+                ball_z = cat_z
 
             # --- Draw ---
             screen.blit(room_bg, (0, 0))
@@ -1310,10 +1323,8 @@ def main():
                 mood=cat_mood,
                 mood_phase=mood_phase,
                 zzz_font=zzz_font,
+                carrying_ball=(ball_state == "cat"),
             )
-
-            if ball_state == "cat":
-                draw_ball(screen, ball_pos, z=ball_z, ground_z=new_ground_z)
 
             if pointer_in_room:
                 draw_hand(screen, cursor_pos, holding=(ball_state == "held"))

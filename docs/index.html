@@ -911,7 +911,7 @@
         }
       }
 
-      function drawCat(ctx, pos, angle, z, groundZ, walkPhase, tailPhase, mood = "active", moodPhase = 0) {
+      function drawCat(ctx, pos, angle, z, groundZ, walkPhase, tailPhase, mood = "active", moodPhase = 0, carryingBall = false) {
         const air = Math.max(0, z - groundZ);
         const scale = 1.0 + Math.min(0.24, air * 0.0042);
         const s = CAT_SIZE * scale;
@@ -1084,6 +1084,17 @@
         const groomBob = mood === "groom" ? Math.sin(moodPhase * 7.5) * (s * 0.04) : 0;
         const hx = cx + fx * (s * headShift + groomBob);
         const hy = cy + fy * (s * headShift + groomBob);
+
+        // Draw carried ball tucked into the mouth BEFORE the upper head/muzzle so nose & eyes stay visible
+        if (carryingBall) {
+          drawBall(
+            ctx,
+            { x: pos.x + fx * (CAT_SIZE * 1.00), y: pos.y + fy * (CAT_SIZE * 1.00) },
+            z,
+            groundZ
+          );
+        }
+
         ctx.fillStyle = CAT_COLOR;
         ctx.beginPath(); ctx.arc(hx, hy, s * 0.40, 0, Math.PI * 2); ctx.fill();
         drawEars(ctx, hx, hy, fx, fy, rx, ry, s);
@@ -1109,9 +1120,18 @@
           }
         }
 
+        if (carryingBall) {
+          ctx.fillStyle = CAT_COLOR;
+          for (const side of [-1, 1]) {
+            const chx = hx + fx * (s * 0.30) + rx * (side * s * 0.11);
+            const chy = hy + fy * (s * 0.30) + ry * (side * s * 0.11);
+            ctx.beginPath(); ctx.arc(chx, chy, Math.max(3, s * 0.11), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+
         ctx.fillStyle = CAT_INNER_EAR;
         ctx.beginPath();
-        ctx.arc(hx + fx * (s * 0.33), hy + fy * (s * 0.33), Math.max(2, s * 0.045), 0, Math.PI * 2);
+        ctx.arc(hx + fx * (s * 0.34), hy + fy * (s * 0.34), Math.max(2, s * 0.045), 0, Math.PI * 2);
         ctx.fill();
 
         if (mood === "groom") {
@@ -1608,13 +1628,13 @@
         if (ballState === "cat") {
           ballPos = clampPoint(
             {
-              x: catPos.x + Math.cos(catAngle) * (CAT_SIZE * 0.88),
-              y: catPos.y + Math.sin(catAngle) * (CAT_SIZE * 0.88),
+              x: catPos.x + Math.cos(catAngle) * (CAT_SIZE * 1.00),
+              y: catPos.y + Math.sin(catAngle) * (CAT_SIZE * 1.00),
             },
             MOUSE_RADIUS,
             MOUSE_RADIUS
           );
-          ballZ = catZ + 4.0;
+          ballZ = catZ;
         }
       }
 
@@ -1634,11 +1654,7 @@
         }
 
         const catGroundZ = surfaceHeightAt(catPos, pillows);
-        drawCat(ctx, catPos, catAngle, catZ, catGroundZ, walkPhase, tailPhase, catMood, moodPhase);
-
-        if (ballState === "cat") {
-          drawBall(ctx, ballPos, ballZ, catGroundZ);
-        }
+        drawCat(ctx, catPos, catAngle, catZ, catGroundZ, walkPhase, tailPhase, catMood, moodPhase, ballState === "cat");
 
         if (pointerInside && !pointerOnHud) {
           drawHand(ctx, cursorPos, ballState === "held");
